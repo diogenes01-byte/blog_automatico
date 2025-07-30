@@ -1,0 +1,10 @@
+Transferencia de aprendizaje - Reutilizar modelos previos eficientemente
+Detección de anomalías - Identificación de patrones inusuales
+Generación de texto automático - Creación de contenido basado en contexto
+Reconocimiento de voz - Convertir audio en texto comprensible
+Segmentación de imágenes - Clasificación de regiones en imágenes
+Sistemas de recomendación - Personalización de sugerencias para usuarios
+Optimización de hiperparámetros - Mejora del rendimiento de modelos
+Visión por computadora - Análisis y comprensión de imágenes
+Chatbots conversacionales - Interacción automatizada con usuarios
+Predicción de series temporales - Pronóstico basado en datos históricos

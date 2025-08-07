@@ -10,9 +10,8 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-      # Si ya no usas OPENROUTER_API_KEY puedes eliminarla
+      BLOG_KEY: ${{ secrets.OPENAI_API_KEY }}
+      GMAIL_KEY: ${{ secrets.EMAIL_PASSWORD }}
 
     steps:
     - name: Checkout repo
@@ -31,11 +30,11 @@ jobs:
 
     - name: Process articles and generate images
       run: |
-        # Procesa todos los archivos .md en articles/outputs
+        # Procesa todos los archivos .md en 01_articulos/outputs
         python imagenes/generacion_imagen.py
         # Si necesitas otros scripts:
-        # python scripts/generate_text.py
-        # python scripts/send_email.py
+        # python scripts/generacion_temas.py
+        # python scripts/envio_email.py
 
     - name: Upload generated images
       uses: actions/upload-artifact@v3

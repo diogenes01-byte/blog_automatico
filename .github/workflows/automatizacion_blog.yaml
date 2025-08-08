@@ -1,4 +1,4 @@
-name: Blog Automation Workflow # Hacer los ajustes necesarios....
+name: Blog Automation Workflow
 
 on:
   push:
@@ -18,7 +18,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v4  # Versión actualizada
+      uses: actions/checkout@v4  # Actualizado de v3 a v4 (versión estable actual)
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -33,23 +33,18 @@ jobs:
 
     - name: Process articles and generate images
       run: |
-        # Procesa todos los archivos .md en 01_articulos/outputs
         python imagenes/generacion_imagen.py
-        # Si necesitas otros scripts:
-        # python scripts/generacion_temas.py
-        # python scripts/envio_email.py
 
     - name: Upload generated images
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4  # Actualizado de v3 a v4 (¡clave para evitar el error!)
       with:
         name: generated-images
         path: imagenes/*.png
         if-no-files-found: warn
 
-    # Opcional: Notificación de éxito
     - name: Slack notification
       if: success()
-      uses: slackapi/slack-github-action@v1
+      uses: slackapi/slack-github-action@v1  # Esta acción ya está en versión estable (no requiere cambios)
       with:
         slack-message: '✅ Automatización completada: ${{ github.repository }}'
       env:

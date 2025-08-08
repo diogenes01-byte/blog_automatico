@@ -1,10 +1,13 @@
 name: Blog Automation Workflow # Hacer los ajustes necesarios....
 
 on:
+  push:
+    branches:
+      - main       # Se activa al hacer push a main
   schedule:
-    - cron: '0 9 * * 1,3,5'  # Lunes a Viernes a las 09:00 UTC (más limpio)
-  workflow_dispatch:         # Ejecución manual permitida
-
+    - cron: '0 9 * * 1,3,5'  # Lunes, Miércoles y Viernes a las 09:00 UTC
+  workflow_dispatch:         # Permite ejecución manual desde la pestaña Actions
+  
 jobs:
   automate:
     runs-on: ubuntu-latest

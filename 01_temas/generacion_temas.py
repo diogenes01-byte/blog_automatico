@@ -22,7 +22,7 @@ NUM_TEMAS = 10
 # Parámetros del sistema de cola
 # ----------------------------
 UMBRAL_TEMAS = 3  # Si hay menos de este número, se generan más
-RUTA_COLA_TEMAS = Path("C:/Users/lugod/auto_blog_ia_nube/01_temas/temas_pendientes.txt")
+RUTA_COLA_TEMAS = Path(__file__).parent / "temas_pendientes.txt"
 
 # ----------------------------
 # Configuración de logging

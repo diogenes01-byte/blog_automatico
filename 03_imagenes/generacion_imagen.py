@@ -105,7 +105,7 @@ class ImageGenerator:
 # Ejecución principal
 # ----------------------------
 if __name__ == "__main__":
-    API_KEY = os.getenv("BLOG_KEY")
+    API_KEY = os.getenv("BLOG_OPENIA_KEY")
     if not API_KEY or API_KEY.startswith("tu-api-key"):
         logger.error("❌ Configura tu API key de OpenAI")
     else:

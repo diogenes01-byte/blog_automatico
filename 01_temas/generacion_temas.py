@@ -16,8 +16,6 @@ TEMPERATURE = 0.7
 MAX_TOKENS = 1000
 NUM_TEMAS = 10
 
-client = OpenAI(api_key=OPENAI_API_KEY)
-
 # ----------------------------
 # Parámetros del sistema de cola
 # ----------------------------

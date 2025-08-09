@@ -14,8 +14,8 @@ jobs:
     timeout-minutes: 30
 
     env:
-      BLOG_OPENIA_KEY: ${{ secrets.OPENAI_API_KEY }}
-      GMAIL_KEY: ${{ secrets.EMAIL_PASSWORD }}
+      BLOG_OPENIA_KEY: ${{ secrets.BLOG_OPENIA_KEY }}
+      GMAIL_KEY: ${{ secrets.GMAIL_KEY }}
 
     steps:
     - name: Checkout repo

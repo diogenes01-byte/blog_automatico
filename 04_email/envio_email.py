@@ -118,11 +118,10 @@ def send_email():
 
         # --- Enviar correo (con SMTP_SSL) ---
         logger.info("Conectando con servidor SMTP...")
-        #EMAIL_PASSWORD = getpass.getpass("Ingresa la contraseña de aplicación de Google: ")
-        EMAIL_PASSWORD = os.getenv("GMAIL_KEY")
+        GMAIL_KEY = os.getenv("GMAIL_KEY")
         
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(EMAIL_FROM, EMAIL_PASSWORD)
+            server.login(EMAIL_FROM, GMAIL_KEY)
             server.send_message(msg)
             logger.info("✅ Correo enviado exitosamente")
 

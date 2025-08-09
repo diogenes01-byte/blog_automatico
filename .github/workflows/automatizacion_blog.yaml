@@ -3,14 +3,15 @@ name: Blog Automation Workflow
 on:
   push:
     branches:
-      - main       # Se activa al hacer push a main
+      - main
   schedule:
     - cron: '0 9 * * 1,3,5'  # Lunes, Miércoles y Viernes a las 09:00 UTC
-  workflow_dispatch:         # Permite ejecución manual desde la pestaña Actions
-  
+  workflow_dispatch:
+
 jobs:
   automate:
     runs-on: ubuntu-latest
+    timeout-minutes: 30  # Añadido timeout para evitar jobs colgados
 
     env:
       BLOG_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -18,7 +19,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v4  # Actualizado de v3 a v4 (versión estable actual)
+      uses: actions/checkout@v4
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -28,24 +29,34 @@ jobs:
     - name: Install dependencies
       run: |
         pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install openai nltk python-dotenv requests smtplib
         python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
 
-    - name: Process articles and generate images
+    - name: Create directory structure
       run: |
-        python imagenes/generacion_imagen.py
+        mkdir -p 01_temas 02_articulos/outputs 03_imagenes logs
 
-    - name: Upload generated images
-      uses: actions/upload-artifact@v4  # Actualizado de v3 a v4 (¡clave para evitar el error!)
+    - name: Generate topics
+      run: python generacion_temas.py
+      working-directory: ./temas  # Ajustado según estructura real
+
+    - name: Generate articles
+      run: python generacion_articulos.py
+      working-directory: ./articulos
+
+    - name: Generate images
+      run: python generacion_imagen.py
+      working-directory: ./imagenes
+
+    - name: Send email
+      run: python envio_email.py
+      working-directory: ./email
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
       with:
-        name: generated-images
-        path: imagenes/*.png
+        name: blog-output
+        path: |
+          02_articulos/outputs/*.md
+          03_imagenes/*.png
         if-no-files-found: warn
-
-    - name: Slack notification
-      if: success()
-      uses: slackapi/slack-github-action@v1  # Esta acción ya está en versión estable (no requiere cambios)
-      with:
-        slack-message: '✅ Automatización completada: ${{ github.repository }}'
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}

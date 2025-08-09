@@ -29,28 +29,28 @@ jobs:
     - name: Install dependencies
       run: |
         pip install --upgrade pip
-        pip install openai nltk python-dotenv requests  # Eliminado smtplib
+        pip install openai nltk python-dotenv requests
         python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
 
     - name: Create directory structure
       run: |
         mkdir -p 01_temas 02_articulos/outputs 03_imagenes logs
 
+    # PASOS ACTUALIZADOS - Rutas corregidas:
     - name: Generate topics
       run: python generacion_temas.py
-      working-directory: ./temas
+      working-directory: ./01_temas  # Cambiado de './temas' a './01_temas'
 
     - name: Generate articles
       run: python generacion_articulos.py
-      working-directory: ./articulos
+      working-directory: ./02_articulos  # Cambiado de './articulos' a './02_articulos'
 
     - name: Generate images
       run: python generacion_imagen.py
-      working-directory: ./imagenes
+      working-directory: ./03_imagenes  # Cambiado de './imagenes' a './03_imagenes'
 
     - name: Send email
-      run: python envio_email.py
-      working-directory: ./email
+      run: python envio_email.py  # Este puede quedarse en la raíz si está ahí
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4

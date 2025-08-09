@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 # ----------------------------
 # Configuración de OpenAI
 # ----------------------------
-client = OpenAI(api_key=os.getenv("BLOG_KEY"))
+client = OpenAI(api_key=os.getenv("BLOG_OPENIA_KEY"))
 MODELO = "gpt-4o"
 TEMPERATURE = 0.7
 

@@ -51,6 +51,7 @@ jobs:
 
     - name: Send email
       run: python envio_email.py  # Este puede quedarse en la raíz si está ahí
+      working-directory: ./04_email
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4

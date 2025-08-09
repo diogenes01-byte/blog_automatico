@@ -11,7 +11,7 @@ on:
 jobs:
   automate:
     runs-on: ubuntu-latest
-    timeout-minutes: 30  # Añadido timeout para evitar jobs colgados
+    timeout-minutes: 30
 
     env:
       BLOG_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -38,7 +38,7 @@ jobs:
 
     - name: Generate topics
       run: python generacion_temas.py
-      working-directory: ./temas  # Ajustado según estructura real
+      working-directory: ./temas
 
     - name: Generate articles
       run: python generacion_articulos.py
@@ -53,7 +53,7 @@ jobs:
       working-directory: ./email
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4  # Versión actualizada
       with:
         name: blog-output
         path: |

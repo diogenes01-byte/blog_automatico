@@ -12,7 +12,7 @@ from openai import OpenAI
 # Configuración de OpenAI (CORREGIDO)
 # ----------------------------
 MODELO = "gpt-4"  # Añade esta línea (o usa "gpt-3.5-turbo" si prefieres)
-OPENAI_API_KEY = os.getenv("BLOG_KEY")  # Asegúrate que coincide con tu secret en GitHub
+OPENAI_API_KEY = os.getenv("BLOG_OPENIA_KEY")  # Asegúrate que coincide con tu secret en GitHub
 client = OpenAI(api_key=OPENAI_API_KEY)  # Usa la variable correcta
 TEMPERATURE = 0.7
 MAX_TOKENS = 1000

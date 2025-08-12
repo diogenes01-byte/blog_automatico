@@ -75,33 +75,28 @@ def generar_articulo(tema):
     """Genera un artículo técnico completo a partir de un tema."""
     try:
         prompt = f"""
-        Escribe un artículo técnico profesional de más de 2000 palabras sobre '{tema}' en español, 
-        con un tono equilibrado entre rigor técnico y humor sarcástico inteligente. 
-        Sigue esta estructura en formato Markdown:
+Escribe un artículo técnico profesional de más de 2000 palabras sobre '{tema}' en español,
+con un tono equilibrado entre rigor técnico y humor sarcástico inteligente.
+El texto debe fluir como una narrativa continua, sin títulos o subtítulos explícitos.
+Usa transiciones narrativas y cambios de tono para marcar las partes del artículo.
+El contenido debe ser ideal para el cuerpo de un correo, atractivo desde la primera línea.
 
-        # [Título creativo que combine el tema con una referencia pop]
+Estructura implícita:
+1. Arranque con anécdota relatable, datos contundentes y promesa al lector.
+2. Explicación profunda de conceptos clave con analogías creativas y ejemplos reales.
+3. Casos prácticos con aprendizajes relevantes.
+4. Funcionalidades avanzadas y tendencias futuras.
+5. Cierre con resumen, recursos útiles y llamada a la acción convincente.
 
-        ## Introducción
-        Comienza con una anécdota relatable. Usa datos contundentes y termina con una promesa al lector.
+Requisitos:
+- Sin fragmentos de código.
+- Incluir ejemplos de la vida real y referencias culturales o históricas.
+- Usar emojis con moderación para marcar transiciones (máx. 1 por transición).
+- 80% contenido técnico y 20% humor.
+- Párrafos cortos, fáciles de leer, y con ritmo.
+- Incluir predicciones o tendencias a 2-5 años relacionadas con el tema.
+"""
 
-        ## Desarrollo
-        ### Teoría mal entendida
-        Profundiza en conceptos fundamentales con analogías y código bien comentado.
-
-        ### Casos reales
-        Ejemplos de implementaciones con lecciones aprendidas.
-
-        ### Funcionalidades avanzadas
-        Características poco conocidas pero útiles.
-
-        ## Conclusión
-        Resumen claro + recursos valiosos + llamada a la acción.
-
-        **Requisitos:**
-        - 3 bloques de código con errores/soluciones
-        - Emojis moderados en títulos 🚀
-        - 80% técnico / 20% humor
-        """
 
         response = client.chat.completions.create(
             model=MODELO,

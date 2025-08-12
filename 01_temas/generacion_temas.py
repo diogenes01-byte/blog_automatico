@@ -54,18 +54,20 @@ logger = logging.getLogger(__name__)
 # Prompt de generación
 # ----------------------------
 PROMPT = f"""
-Genera una lista de {NUM_TEMAS} temas innovadores para artículos técnicos sobre:
-- Inteligencia Artificial
-- Ciencia de Datos
-- Ingeniería de ML
-- Modelos fundacionales y agentes autónomos
-- Data mesh y data fabric
-- Explainable AI (XAI) y modelos interpretables
-- Edge AI y análisis en tiempo real
-- IA generativa para ciencia y descubrimientos
+Genera una lista de {NUM_TEMAS} temas altamente innovadores y orientados al futuro para artículos técnicos sobre:
+- Inteligencia Artificial avanzada y aplicada
+- Ciencia de Datos de nueva generación
+- Ingeniería de Machine Learning y MLOps a gran escala
+- Modelos fundacionales, agentes autónomos y sistemas multiagente
+- Data mesh, data fabric y arquitecturas descentralizadas de datos
+- Explainable AI (XAI), auditoría algorítmica y confianza en IA
+- Edge AI, análisis en tiempo real y procesamiento en el dispositivo
+- IA generativa para descubrimientos científicos, simulaciones y diseño de nuevos materiales
+- Integración de IA con computación cuántica y HPC (High Performance Computing)
+- Automatización cognitiva y toma de decisiones autónoma
 
 Requisitos:
-1. Temas específicos (ej: "Cómo optimizar Pandas para datasets de 10GB").
+1. Temas concretos, con aplicación práctica o técnica detallada (ej: "Optimización de entrenamiento distribuido de LLMs en clústeres heterogéneos").
 2. Evitar temas genéricos como 'Qué es Machine Learning'.
 3. Formato requerido:
    - Un tema por línea
@@ -73,6 +75,7 @@ Requisitos:
    - Sin caracteres especiales como *, -, etc.
    - Solo el texto del tema
 """
+
 
 # ----------------------------
 # Función para llamar a OpenAI

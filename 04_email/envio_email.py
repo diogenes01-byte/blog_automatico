@@ -14,7 +14,7 @@ import logging
 # ----------------------------
 BASE_DIR = Path(__file__).parent.parent
 LOG_DIR = BASE_DIR / "logs"
-LOG_DIR.mkdir(exist_ok=True)  # Asegura que la carpeta logs existe
+LOG_DIR.mkdir(exist_ok=True)  
 
 logging.basicConfig(
     level=logging.INFO,

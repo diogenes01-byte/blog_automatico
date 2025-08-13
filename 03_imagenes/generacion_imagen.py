@@ -10,6 +10,8 @@ from nltk.tokenize import word_tokenize
 from openai import OpenAI
 from pathlib import Path
 import logging
+import re
+import numpy as np
 
 # ----------------------------
 # Configuración inicial
@@ -35,12 +37,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ----------------------------
-# Clase ImageGenerator (optimizada)
+# Clase ImageGenerator (optimizada con embeddings)
 # ----------------------------
 class ImageGenerator:
     def __init__(self, api_key: str):
-        self.stop_words = set(stopwords.words('spanish') + stopwords.words('english'))
+        self.api_key = api_key
         self.client = OpenAI(api_key=api_key)
+        self.stop_words = set(stopwords.words('spanish') + stopwords.words('english'))
         
         # Descargar recursos NLTK si no están
         try:
@@ -50,67 +53,91 @@ class ImageGenerator:
             nltk.download('punkt')
             nltk.download('stopwords')
 
-    def extract_keywords(self, text: str) -> List[str]:
-        """Extrae palabras clave priorizando relevancia y variedad"""
+    def extract_keywords_semantic(self, text: str, resumen: str) -> List[str]:
+        """Extrae keywords usando embeddings y relevancia semántica"""
         try:
-            # Tokenizar y filtrar stopwords
+            # Tokenización básica
+            palabras = re.findall(r'\b[a-zA-ZáéíóúñÁÉÍÓÚÑ]{4,}\b', text.lower())
+            stopwords_basicas = {
+                "esta", "este", "para", "como", "donde", "cuando", "todo",
+                "pero", "porque", "datos", "tecnologia", "tecnológico",
+                "machine", "learning", "inteligencia", "artificial", "sistema"
+            }
+            candidatos = list(set(p for p in palabras if p not in stopwords_basicas))
+
+            # Embedding del resumen
+            resumen_vec = self.client.embeddings.create(
+                model="text-embedding-3-small",
+                input=resumen
+            ).data[0].embedding
+
+            # Calcular similitud coseno para cada candidato
+            resultados = []
+            for palabra in candidatos:
+                vec = self.client.embeddings.create(
+                    model="text-embedding-3-small",
+                    input=palabra
+                ).data[0].embedding
+                sim = np.dot(resumen_vec, vec) / (np.linalg.norm(resumen_vec) * np.linalg.norm(vec))
+                resultados.append((palabra, sim))
+
+            resultados.sort(key=lambda x: x[1], reverse=True)
+            return [palabra for palabra, _ in resultados[:5]]
+
+        except Exception as e:
+            logger.warning(f"Fallo en extracción semántica: {str(e)}")
+            return None
+
+    def extract_keywords_fallback(self, text: str) -> List[str]:
+        """Método de respaldo usando NLTK y frecuencia"""
+        try:
             words = [
                 w for w in word_tokenize(text.lower())
                 if w.isalpha()
                 and w not in self.stop_words
                 and len(w) > 3
             ]
-
-            # Filtrar palabras genéricas adicionales
             palabras_genericas = {
                 "datos", "data", "información", "sistema", "tecnología",
                 "machine", "learning", "inteligencia", "artificial"
             }
             words = [w for w in words if w not in palabras_genericas]
 
-            # Contar frecuencia y seleccionar más comunes
             counter = Counter(words)
             mas_comunes = [palabra for palabra, _ in counter.most_common(15)]
-
-            # Elegir 5 aleatorias entre las más comunes
             seleccion = random.sample(mas_comunes, min(5, len(mas_comunes)))
             return seleccion
 
         except Exception as e:
-            logger.warning(f"Error en NLTK, usando palabras por defecto: {str(e)}")
+            logger.warning(f"Error en fallback NLTK: {str(e)}")
             return ["technology", "innovation", "AI"]
 
+    def extract_keywords(self, text: str, resumen: str) -> List[str]:
+        """Híbrido: primero semántica, luego fallback"""
+        keywords_sem = self.extract_keywords_semantic(text, resumen)
+        if keywords_sem and len(keywords_sem) >= 3:
+            return keywords_sem
+        return self.extract_keywords_fallback(text)
+
     def generate_prompt(self, content: str) -> str:
-        """Genera un prompt optimizado y variado para DALL-E 3"""
-        keywords = self.extract_keywords(content)
+        """Genera un prompt optimizado y coherente con el artículo para DALL·E 3"""
+        resumen = ' '.join(content.strip().split()[:50])
+        keywords = self.extract_keywords(content, resumen)
 
-        # Lista de estilos visuales
         estilos = [
-            "isométrico 3D con sombras suaves",
-            "arte futurista con neón",
-            "estilo acuarela digital",
+            "ilustración digital futurista",
             "render hiperrealista con iluminación dramática",
-            "estilo cómic con trazos limpios",
             "minimalista estilo infografía técnica",
-            "concept art cinematográfico"
+            "concept art cinematográfico",
+            "estilo isométrico 3D con sombras suaves"
         ]
-        
-        # Lista de escenarios
-        escenarios = [
-            "en un laboratorio futurista",
-            "en una ciudad inteligente",
-            "sobre un fondo abstracto de datos fluyendo",
-            "con un paisaje digital tipo metaverso",
-            "en un tablero holográfico",
-            "en un centro de control espacial"
-        ]
-
         estilo_elegido = random.choice(estilos)
-        escenario_elegido = random.choice(escenarios)
 
         return (
-            f"Ilustración {estilo_elegido} {escenario_elegido} sobre: {', '.join(keywords)}. "
-            "Colores modernos (azules, grises, naranjas), sin texto, fondo claro, 4K."
+            f"{estilo_elegido} que represente visualmente el tema del artículo: "
+            f"'{resumen}'. Incluir elementos como {', '.join(keywords)} "
+            "con un ambiente tecnológico y profesional, paleta de colores fríos (azules, violetas, grises), "
+            "sin texto, formato horizontal, estética limpia y en alta resolución."
         )
 
     def generate_image(self, article_path: Path) -> Optional[Path]:
@@ -125,13 +152,12 @@ class ImageGenerator:
 
             response = self.client.images.generate(
                 model="dall-e-3",
-                prompt=prompt[:4000],  # Limite de longitud
+                prompt=prompt[:4000],
                 size="1024x1024",
                 quality="hd",
                 n=1
             )
 
-            # Guardar imagen
             image_path = IMAGES_DIR / f"{article_path.stem}.png"
             with open(image_path, 'wb') as f:
                 f.write(requests.get(response.data[0].url).content)
@@ -152,8 +178,6 @@ if __name__ == "__main__":
         logger.error("❌ Configura tu API key de OpenAI")
     else:
         generator = ImageGenerator(API_KEY)
-        
-        # Procesar el artículo más reciente
         articles = list(ARTICLES_DIR.glob("ART_*.md"))
         if not articles:
             logger.error("No hay artículos en la carpeta")

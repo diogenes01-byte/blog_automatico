@@ -75,28 +75,40 @@ def generar_articulo(tema):
     """Genera un artículo técnico completo a partir de un tema."""
     try:
         prompt = f"""
-Escribe un artículo técnico profesional de más de 2000 palabras sobre '{tema}' en español,
-con un tono equilibrado entre rigor técnico y humor sarcástico inteligente.
-El texto debe fluir como una narrativa continua, sin títulos o subtítulos explícitos.
-Usa transiciones narrativas y cambios de tono para marcar las partes del artículo.
-El contenido debe ser ideal para el cuerpo de un correo, atractivo desde la primera línea.
+        ROL
+        Actúa como redactor técnico profesional especializado en divulgación tecnológica y científica, con habilidad para combinar rigor técnico y humor inteligente, manteniendo al lector enganchado de principio a fin.  
 
-Estructura implícita:
-1. Arranque con anécdota relatable, datos contundentes y promesa al lector.
-2. Explicación profunda de conceptos clave con analogías creativas y ejemplos reales.
-3. Casos prácticos con aprendizajes relevantes.
-4. Funcionalidades avanzadas y tendencias futuras.
-5. Cierre con resumen, recursos útiles y llamada a la acción convincente.
+        TAREA
+        Escribe un artículo técnico en español de entre 1200 y 1500 palabras sobre "{tema}" en español, con una narrativa continua y sin títulos o subtítulos explícitos, que fluya con transiciones naturales y cambios de tono para separar las secciones implícitas.  
 
-Requisitos:
-- Sin fragmentos de código.
-- Incluir ejemplos de la vida real y referencias culturales o históricas.
-- Usar emojis con moderación para marcar transiciones (máx. 1 por transición).
-- 80% contenido técnico y 20% humor.
-- Párrafos cortos, fáciles de leer, y con ritmo.
-- Incluir predicciones o tendencias a 2-5 años relacionadas con el tema.
-"""
+        CONTEXTO
+        El artículo está destinado a un público profesional y curioso, que busca profundidad técnica pero disfruta de un toque de ironía o sarcasmo inteligente. El contenido debe poder ser usado como cuerpo principal de un correo o como entrada de blog.  
 
+        RAZONAMIENTO
+        - Abrir con una anécdota o situación relatable, datos contundentes y una promesa clara de valor al lector.  
+        - Explicar los conceptos clave con analogías creativas, referencias culturales o históricas, y ejemplos reales.  
+        - Incluir casos prácticos y aprendizajes derivados de ellos.  
+        - Explorar funcionalidades avanzadas o perspectivas futuras sobre el tema.  
+        - Cerrar con un resumen claro, recursos útiles y una llamada a la acción convincente.  
+        - Mantener una proporción aproximada de 80% contenido técnico y 20% humor.  
+        - Usar emojis con moderación (máximo uno por transición).  
+
+        SALIDA
+        Generar un artículo narrativo que incluya:  
+        - Historia inicial que conecte emocionalmente.  
+        - Explicaciones técnicas profundas con analogías.  
+        - Casos de uso reales y aprendizajes.  
+        - Predicciones y tendencias a 2-5 años.  
+        - Conclusión con recursos y llamada a la acción.  
+
+        CONDICIONES
+        - Extensión: entre 1200 y 1500 palabras.  
+        - Sin fragmentos de código.  
+        - Párrafos cortos y de lectura fluida.  
+        - Usar un tono atractivo desde la primera línea.  
+        - Incluir variaciones de tono para mantener el ritmo narrativo.  
+        - No abusar de tecnicismos sin explicación.  
+        """
 
         response = client.chat.completions.create(
             model=MODELO,

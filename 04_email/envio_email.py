@@ -1,129 +1,166 @@
 import os
 import smtplib
-import logging
 import random
-from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
+from pathlib import Path
+import logging
 from openai import OpenAI
-from dotenv import load_dotenv
 
 # ----------------------------
-# Configuración inicial
+# Configuración de logging
 # ----------------------------
-logging.basicConfig(level=logging.INFO)
+BASE_DIR = Path(__file__).parent.parent
+LOG_DIR = BASE_DIR / "logs"
+LOG_DIR.mkdir(exist_ok=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler(LOG_DIR / "04_enviar_email.log", encoding="utf-8"),
+        logging.StreamHandler()
+    ]
+)
 logger = logging.getLogger(__name__)
 
-load_dotenv()
-
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
-SENDER_EMAIL = "lugo.diogenes01@gmail.com"  
-RECEIVER_EMAIL = "lugo.diogenes01@gmail.com"  
-SMTP_PASSWORD = os.getenv("GMAIL_KEY")
-
+# ----------------------------
+# Cliente OpenAI
+# ----------------------------
+client = OpenAI(api_key=os.getenv("BLOG_OPENIA_KEY"))
 
 # ----------------------------
-# Generar título con OpenAI
+# Lista de ganchos
 # ----------------------------
-def generate_title_with_openai(content: str) -> str:
-    """Genera un título atractivo basado en el contenido del artículo"""
+HOOKS = [
+    "🚀 Descubre:", "🔥 No te pierdas:", "💡 Aprende sobre:",
+    "✨ Novedad:", "📊 Datos reveladores:", "📖 Lectura recomendada:",
+    "🎯 Clave del día:", "🤖 Tecnología en acción:", "🌍 Perspectiva global:"
+]
+EMOJIS = ["🚀", "🔥", "💡", "✨", "📊", "📖", "🎯", "🤖", "🌍"]
+
+# ----------------------------
+# Generar asunto inteligente
+# ----------------------------
+def generate_subject_from_article(content: str) -> str:
     try:
-        client = OpenAI(api_key=os.getenv("BLOG_OPENIA_KEY"))
-
-        prompt = f"""
-        Eres un editor profesional. 
-        Lee el siguiente artículo y genera un título atractivo en español, 
-        máximo 12 palabras, que resuma el tema central de forma clara e intuitiva.
-        No uses frases genéricas como 'Artículo generado automáticamente'. 
-        Devuelve solo el título, sin comillas ni adornos.
-
-        Artículo:
-        {content}
-        """
-
+        logger.info("Generando título con OpenAI...")
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "Eres un experto en redacción de títulos periodísticos."},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": "Eres un asistente que crea títulos llamativos y concisos basados en artículos. Devuelve solo un título breve."
+                },
+                {"role": "user", "content": content[:1500]}
             ],
-            max_tokens=40,
-            temperature=0.7
+            max_tokens=30,
+            temperature=0.7,
         )
+        ai_title = response.choices[0].message.content.strip()
 
-        title = response.choices[0].message.content.strip()
-        logger.info(f"✔ Título generado con OpenAI: {title}")
-        return title
-
+        hook = random.choice(HOOKS)
+        emoji = random.choice(EMOJIS)
+        subject = f"{hook} {ai_title} {emoji}"
+        return subject
     except Exception as e:
-        logger.error(f"❌ Error al generar título con OpenAI: {str(e)}", exc_info=True)
-        return "Título no disponible"
-
-
-# ----------------------------
-# Asunto del correo
-# ----------------------------
-def generate_human_subject(article_title: str) -> str:
-    """Genera asunto con estructura: gancho + título + emoji"""
-    ganchos = [
-        "🚀 Descubre:",
-        "🔥 No te pierdas:",
-        "✨ Lo último en IA:",
-        "📊 Análisis exclusivo:",
-        "💡 Ideas frescas:",
-        "🤖 Innovación al día:",
-        "🌍 Tendencias globales:"
-    ]
-    emojis_finales = ["🚀", "🔥", "✨", "📊", "💡", "🤖", "🌍"]
-
-    gancho = random.choice(ganchos)
-    emoji = random.choice(emojis_finales)
-
-    # Estructura final
-    return f"{gancho} {article_title} {emoji}"
-
+        logger.error(f"❌ Error generando asunto con IA: {str(e)}", exc_info=True)
+        return "📬 Artículo generado automáticamente"
 
 # ----------------------------
-# Envío de email
+# Función principal
 # ----------------------------
-def send_email(article_content: str):
-    """Envía el artículo generado por correo con un asunto atractivo"""
-
-    # 1. Generar título real del artículo con IA
-    article_title = generate_title_with_openai(article_content)
-
-    # 2. Construir asunto final
-    subject = generate_human_subject(article_title)
-
-    # 3. Crear cuerpo del correo
-    msg = MIMEMultipart()
-    msg["From"] = SENDER_EMAIL
-    msg["To"] = RECEIVER_EMAIL
-    msg["Subject"] = subject
-
-    msg.attach(MIMEText(article_content, "plain"))
-
+def send_email():
     try:
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SENDER_EMAIL, SMTP_PASSWORD)
-            server.send_message(msg)
-            logger.info(f"📨 Correo enviado con asunto: {subject}")
-    except Exception as e:
-        logger.error(f"❌ Error enviando correo: {str(e)}", exc_info=True)
+        EMAIL_FROM = "lugo.diogenes01@gmail.com"
+        EMAIL_TO = "lugo.diogenes01@gmail.com"
 
+        ARTICLE_DIR = BASE_DIR / "02_articulos" / "outputs"
+        IMAGE_DIR = BASE_DIR / "03_imagenes"
+
+        articles = list(ARTICLE_DIR.glob("ART_*.md"))
+        if not articles:
+            logger.error("No se encontraron artículos en la carpeta")
+            return
+
+        latest_article = max(articles, key=lambda x: x.stat().st_mtime)
+        article_title = latest_article.stem.replace("ART_", "").replace("_", " ")
+        image_name = f"{latest_article.stem}.png"
+        image_path = IMAGE_DIR / image_name
+
+        with open(latest_article, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        subject = generate_subject_from_article(content)
+
+        msg = MIMEMultipart()
+        msg['From'] = EMAIL_FROM
+        msg['To'] = EMAIL_TO
+        msg['Subject'] = subject
+
+        # --- Cuerpo HTML con texto justificado ---
+        html_content = f"""
+        <html>
+          <body style="font-family: Arial, sans-serif; line-height: 1.6; text-align: justify;">
+            <h2 style="color: #2d3748; text-align: center;">{article_title}</h2>
+            <div style="background: #f7fafc; padding: 20px; border-radius: 8px; text-align: justify;">
+              <pre style="white-space: pre-wrap; font-size: 16px; text-align: justify;">{content}</pre>
+            </div>
+            <p style="margin-top: 20px; color: #4a5568; text-align: center;">
+              <i>✨ Artículo generado automáticamente con IA</i>
+            </p>
+          </body>
+        </html>
+        """
+        msg.attach(MIMEText(html_content, 'html', 'utf-8'))
+
+        # --- Adjuntar imagen ---
+        if image_path.exists():
+            logger.info(f"✔ Imagen encontrada: {image_path}")
+            try:
+                with open(image_path, "rb") as file:
+                    part = MIMEBase("image", "png")
+                    part.set_payload(file.read())
+                    encoders.encode_base64(part)
+                    part.add_header(
+                        "Content-Disposition",
+                        f'attachment; filename="{image_path.name}"'
+                    )
+                    msg.attach(part)
+                    logger.info(f"✔ Imagen '{image_path.name}' adjuntada correctamente")
+            except Exception as e:
+                logger.error(f"❌ Error al adjuntar imagen: {str(e)}", exc_info=True)
+        else:
+            logger.warning(f"⚠ Imagen no encontrada en: {image_path}")
+
+        logger.info("Conectando con servidor SMTP...")
+        GMAIL_KEY = os.getenv("GMAIL_KEY")
+
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(EMAIL_FROM, GMAIL_KEY)
+            server.send_message(msg)
+            logger.info("✅ Correo enviado exitosamente")
+
+    except smtplib.SMTPAuthenticationError:
+        logger.error("""
+        ❌ Error de autenticación. Verifica:
+        1. Que la verificación en 2 pasos esté ACTIVADA
+        2. Que hayas generado una CONTRASEÑA DE APLICACIÓN
+        3. Que estés usando la contraseña de aplicación (16 caracteres)
+        """)
+    except Exception as e:
+        logger.error(f"❌ Error inesperado: {str(e)}", exc_info=True)
 
 # ----------------------------
-# Ejecución directa (test)
+# Ejecución
 # ----------------------------
 if __name__ == "__main__":
-    test_content = """
-    La inteligencia artificial está revolucionando el análisis de datos en pequeñas y medianas empresas. 
-    Desde herramientas de predicción hasta automatización de procesos, la IA permite tomar mejores decisiones 
-    y optimizar recursos.
-    """
-    send_email(test_content)
+    logger.info("==== INICIO DE ENVÍO ====")
+    send_email()
+    logger.info("==== PROCESO COMPLETADO ====")
+
 
 
 

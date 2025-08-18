@@ -29,7 +29,7 @@ SMTP_PASSWORD = os.getenv("GMAIL_KEY")
 def generate_title_with_openai(content: str) -> str:
     """Genera un título atractivo basado en el contenido del artículo"""
     try:
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        client = OpenAI(api_key=os.getenv("BLOG_OPENIA_KEY"))
 
         prompt = f"""
         Eres un editor profesional. 

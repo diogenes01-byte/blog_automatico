@@ -104,7 +104,6 @@ def send_email():
         html_content = f"""
         <html>
           <body style="font-family: Arial, sans-serif; line-height: 1.6; text-align: justify;">
-            <h2 style="color: #2d3748; text-align: center;">{article_title}</h2>
             <div style="background: #f7fafc; padding: 20px; border-radius: 8px; text-align: justify;">
               <pre style="white-space: pre-wrap; font-size: 16px; text-align: justify;">{content}</pre>
             </div>

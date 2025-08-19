@@ -107,8 +107,7 @@ def generar_articulo(tema):
         - Párrafos cortos y de lectura fluida.  
         - Usar un tono atractivo desde la primera línea.  
         - Incluir variaciones de tono para mantener el ritmo narrativo.  
-        - No abusar de tecnicismos sin explicación.
-        - Devuelve solo un título breve, sin comillas (ni dobles ni simples, ni “ ” ni « »)  
+        - No abusar de tecnicismos sin explicación. 
         """
 
         response = client.chat.completions.create(

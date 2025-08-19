@@ -74,41 +74,44 @@ def seleccionar_tema():
 def generar_articulo(tema):
     """Genera un artículo técnico completo a partir de un tema."""
     try:
-        prompt = f"""
-        ROL
-        Actúa como redactor técnico profesional especializado en divulgación tecnológica y científica, con habilidad para combinar rigor técnico y humor inteligente, manteniendo al lector enganchado de principio a fin.  
+        prompt = f"""  
+    ROL  
+    Actúa como redactor técnico profesional especializado en divulgación tecnológica y científica, con habilidad para combinar rigor técnico y humor inteligente, manteniendo al lector enganchado de principio a fin.  
 
-        TAREA
-        Escribe un artículo técnico en español de entre 1200 y 1500 palabras sobre {tema} en español, con una narrativa continua y sin títulos o subtítulos explícitos, que fluya con transiciones naturales y cambios de tono para separar las secciones implícitas.  
+    TAREA  
+    Escribe un artículo técnico en español de entre 1200 y 1500 palabras sobre {tema} en español, con una narrativa continua y sin títulos o subtítulos explícitos, que fluya con transiciones naturales y cambios de tono para separar las secciones implícitas.  
 
-        CONTEXTO
-        El artículo está destinado a un público profesional y curioso, que busca profundidad técnica pero disfruta de un toque de ironía o sarcasmo inteligente. El contenido debe poder ser usado como cuerpo principal de un correo o como entrada de blog.  
+    CONTEXTO  
+    El artículo está destinado a un público profesional y curioso, que busca profundidad técnica pero disfruta de un toque de ironía o sarcasmo inteligente. El contenido debe poder ser usado como cuerpo principal de un correo o como entrada de blog.  
 
-        RAZONAMIENTO
-        - Abrir con una anécdota o situación relatable, datos contundentes y una promesa clara de valor al lector.  
-        - Explicar los conceptos clave con analogías creativas, referencias culturales o históricas, y ejemplos reales.  
-        - Incluir casos prácticos y aprendizajes derivados de ellos.  
-        - Explorar funcionalidades avanzadas o perspectivas futuras sobre el tema.  
-        - Cerrar con un resumen claro, recursos útiles y una llamada a la acción convincente.  
-        - Mantener una proporción aproximada de 80% contenido técnico y 20% humor.  
-        - Usar emojis con moderación (máximo uno por transición).  
+    RAZONAMIENTO  
+    - Abrir con una anécdota o situación relatable, datos contundentes y una promesa clara de valor al lector.  
+    - Explicar los conceptos clave con analogías creativas, referencias culturales o históricas, y ejemplos reales.  
+    - Incluir casos prácticos y aprendizajes derivados de ellos.  
+    - Incorporar citas breves de expertos, papers o fuentes reconocidas para reforzar los argumentos (ejemplo: “según un estudio del MIT en 2023…”).  
+    - Explorar funcionalidades avanzadas o perspectivas futuras sobre el tema.  
+    - Cerrar con un resumen claro, recursos útiles y una llamada a la acción convincente.  
+    - Mantener una proporción aproximada de 80% contenido técnico y 20% humor.  
+    - Usar emojis con moderación (máximo uno por transición).  
 
-        SALIDA
-        Generar un artículo narrativo que incluya:  
-        - Historia inicial que conecte emocionalmente.  
-        - Explicaciones técnicas profundas con analogías.  
-        - Casos de uso reales y aprendizajes.  
-        - Predicciones y tendencias a 2-5 años.  
-        - Conclusión con recursos y llamada a la acción.  
+    SALIDA  
+    Generar un artículo narrativo que incluya:  
+    - Historia inicial que conecte emocionalmente.  
+    - Explicaciones técnicas profundas con analogías.  
+    - Casos de uso reales y aprendizajes.  
+    - Predicciones y tendencias a 2-5 años.  
+    - Inclusión de citas para respaldar afirmaciones clave.  
+    - Conclusión con recursos y llamada a la acción.  
 
-        CONDICIONES
-        - No entregues un articulo MENOR de 1200 palabras.  
-        - Sin fragmentos de código.  
-        - Párrafos cortos y de lectura fluida.  
-        - Usar un tono atractivo desde la primera línea.  
-        - Incluir variaciones de tono para mantener el ritmo narrativo.  
-        - No abusar de tecnicismos sin explicación. 
-        """
+    CONDICIONES  
+    - No entregues un artículo MENOR de 1200 palabras.  
+    - Sin fragmentos de código.  
+    - Párrafos cortos y de lectura fluida.  
+    - Usar un tono atractivo desde la primera línea.  
+    - Incluir variaciones de tono para mantener el ritmo narrativo.  
+    - Introducir frases-puente o micro-resúmenes intermedios para dar respiro y evitar bloques de texto largos.  
+    - No abusar de tecnicismos sin explicación.  
+    """  
 
         response = client.chat.completions.create(
             model=MODELO,

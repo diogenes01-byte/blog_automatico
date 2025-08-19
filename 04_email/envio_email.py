@@ -108,7 +108,7 @@ def send_email():
               <pre style="white-space: pre-wrap; font-size: 16px; text-align: justify;">{content}</pre>
             </div>
             <p style="margin-top: 20px; color: #4a5568; text-align: center;">
-              <i>✨ Artículo generado automáticamente con IA</i>
+              <i>✍️ Redactado por Chart G. PT, tu redactor de IA de confianza</i>
             </p>
           </body>
         </html>

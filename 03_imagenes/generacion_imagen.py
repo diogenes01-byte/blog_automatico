@@ -158,7 +158,8 @@ class ImageGenerator:
                 n=1
             )
 
-            image_path = IMAGES_DIR / f"{article_path.stem}.png"
+            # Guardar siempre como imagen.png
+            image_path = IMAGES_DIR / "imagen.png"
             with open(image_path, 'wb') as f:
                 f.write(requests.get(response.data[0].url).content)
             
@@ -184,3 +185,4 @@ if __name__ == "__main__":
         else:
             latest_article = max(articles, key=lambda x: x.stat().st_mtime)
             generator.generate_image(latest_article)
+

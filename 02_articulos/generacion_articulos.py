@@ -79,7 +79,7 @@ def generar_articulo(tema):
         Actúa como redactor técnico profesional especializado en divulgación tecnológica y científica, con habilidad para combinar rigor técnico y humor inteligente, manteniendo al lector enganchado de principio a fin.  
 
         TAREA
-        Escribe un artículo técnico en español de entre 1200 y 1500 palabras sobre "{tema}" en español, con una narrativa continua y sin títulos o subtítulos explícitos, que fluya con transiciones naturales y cambios de tono para separar las secciones implícitas.  
+        Escribe un artículo técnico en español de entre 1200 y 1500 palabras sobre {tema} en español, con una narrativa continua y sin títulos o subtítulos explícitos, que fluya con transiciones naturales y cambios de tono para separar las secciones implícitas.  
 
         CONTEXTO
         El artículo está destinado a un público profesional y curioso, que busca profundidad técnica pero disfruta de un toque de ironía o sarcasmo inteligente. El contenido debe poder ser usado como cuerpo principal de un correo o como entrada de blog.  

@@ -102,7 +102,7 @@ def generar_articulo(tema):
         - Conclusión con recursos y llamada a la acción.  
 
         CONDICIONES
-        - Extensión: entre 1200 y 1500 palabras.  
+        - No entregues un articulo MENOR de 1200 palabras.  
         - Sin fragmentos de código.  
         - Párrafos cortos y de lectura fluida.  
         - Usar un tono atractivo desde la primera línea.  

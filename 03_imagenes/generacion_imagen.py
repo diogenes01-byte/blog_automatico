@@ -124,13 +124,19 @@ class ImageGenerator:
         resumen = ' '.join(content.strip().split()[:50])
         keywords = self.extract_keywords(content, resumen)
 
-        # 🔹 Ajuste aquí: estilo fijo y profesional
-        estilo_elegido = "visualización minimalista y corporativa, estilo infografía tecnológica, estética profesional"
+        estilos = [
+            "ilustración digital futurista",
+            "render hiperrealista con iluminación dramática",
+            "minimalista estilo infografía técnica",
+            "concept art cinematográfico",
+            "estilo isométrico 3D con sombras suaves"
+        ]
+        estilo_elegido = random.choice(estilos)
 
         return (
             f"{estilo_elegido} que represente visualmente el tema del artículo: "
             f"'{resumen}'. Incluir elementos como {', '.join(keywords)} "
-            "con un ambiente tecnológico, corporativo y ordenado, paleta de colores fríos (azules, violetas, grises), "
+            "con un ambiente tecnológico y profesional, paleta de colores fríos (azules, violetas, grises), "
             "sin texto, formato horizontal, estética limpia y en alta resolución."
         )
 
@@ -152,8 +158,8 @@ class ImageGenerator:
                 n=1
             )
 
-            # Guardar siempre como imagen.png
-            image_path = IMAGES_DIR / "imagen.png"
+            # ⇩⇩⇩ AJUSTE ÚNICO: guardar con el mismo nombre del artículo + .png
+            image_path = IMAGES_DIR / f"{article_path.stem}.png"
             with open(image_path, 'wb') as f:
                 f.write(requests.get(response.data[0].url).content)
             
@@ -179,5 +185,6 @@ if __name__ == "__main__":
         else:
             latest_article = max(articles, key=lambda x: x.stat().st_mtime)
             generator.generate_image(latest_article)
+
 
 

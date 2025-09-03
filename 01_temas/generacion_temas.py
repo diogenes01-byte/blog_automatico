@@ -24,7 +24,7 @@ RUTA_TEMA_ACTUAL = Path(__file__).parent / "tema_actual.json"
 MODELO = "gpt-4o"  # Consistente con la carpeta 02
 OPENAI_API_KEY = os.getenv("BLOG_OPENIA_KEY")
 TEMPERATURE = 0.8
-MAX_TOKENS = 300
+MAX_TOKENS = 350
 
 # ----------------------------
 # Logging (UTF-8 + rotación)

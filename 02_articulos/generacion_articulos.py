@@ -1,176 +1,163 @@
+# 02_articulos/generacion_articulos.py
+
 import os
+import sys
+import io
 import json
+import re
 import logging
 from pathlib import Path
 from datetime import datetime
+from logging.handlers import RotatingFileHandler
 from openai import OpenAI
 
-# ----------------------------
+# ----------------------------------------------------
 # Configuración de rutas
-# ----------------------------
+# ----------------------------------------------------
 BASE_DIR = Path(__file__).parent.parent
 LOG_DIR = BASE_DIR / "logs"
-ARTICULOS_DIR = BASE_DIR / "02_articulos" / "outputs"
-TEMAS_JSON_PATH = BASE_DIR / "01_temas" / "temas_pendientes.json"
-TEMAS_USADOS_PATH = BASE_DIR / "01_temas" / "temas_usados.json"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-ARTICULOS_DIR.mkdir(parents=True, exist_ok=True)
-LOG_DIR.mkdir(exist_ok=True)
+RUTA_TEMA_ACTUAL = BASE_DIR / "01_temas" / "tema_actual.json"
+RUTA_SALIDA = Path(__file__).parent / "articulo_generado.json"
 
-# ----------------------------
-# Configuración de logging
-# ----------------------------
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.FileHandler(LOG_DIR / "generador_articulos.log", encoding="utf-8"),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
-
-# ----------------------------
-# Configuración de OpenAI
-# ----------------------------
-client = OpenAI(api_key=os.getenv("BLOG_OPENIA_KEY"))
+# Parámetros del modelo
 MODELO = "gpt-4o"
-TEMPERATURE = 0.7
+TEMPERATURE = 0.8
+MAX_TOKENS = 7500  # nos da espacio para ~1500-2000 palabras
+OPENAI_API_KEY = os.getenv("BLOG_OPENIA_KEY")
 
-# ----------------------------
-# Selección y manejo del tema
-# ----------------------------
-def seleccionar_tema():
-    """Toma el primer tema del JSON, lo elimina y lo guarda en historial."""
-    if not TEMAS_JSON_PATH.exists():
-        logger.error("❌ El archivo de temas pendientes no existe.")
-        return None
+# ----------------------------------------------------
+# Logging
+# ----------------------------------------------------
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger.handlers.clear()
+logger.addHandler(
+    RotatingFileHandler(
+        LOG_DIR / "generador_articulos.log",
+        maxBytes=5 * 1024 * 1024,
+        backupCount=3,
+        encoding="utf-8",
+    )
+)
+logger.addHandler(logging.StreamHandler())
+
+# ----------------------------------------------------
+# Cliente OpenAI
+# ----------------------------------------------------
+if not OPENAI_API_KEY:
+    logger.critical("❌ Falta la variable de entorno BLOG_OPENIA_KEY.")
+    sys.exit(1)
+
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+# ----------------------------------------------------
+# Prompt
+# ----------------------------------------------------
+PROMPT_TEMPLATE = """
+Redacta un artículo técnico y narrativo en español, de entre 1500 y 2000 palabras,
+a partir del siguiente título:
+
+"{titulo}"
+
+Requisitos:
+1) Enfócate en Inteligencia Artificial, Machine Learning, Deep Learning, Ingeniería de datos
+   y su aplicación concreta a finanzas, contabilidad, economía o mercados.
+2) Incluye explicaciones técnicas y ejemplos prácticos, pero con claridad para público experto.
+3) Evita frases genéricas, salud/medicina y auto-referencias ("en este artículo hablaremos…").
+4) Usa subtítulos, párrafos bien estructurados y tono profesional.
+5) No incluyas conclusiones triviales; aporta ideas de arquitectura, tendencias y retos futuros.
+""".strip()
+
+
+def limpiar_titulo(t: str) -> str:
+    """Elimina comillas, viñetas y espacios redundantes del título."""
+    if not t:
+        return ""
+    t = t.strip()
+    if "\n" in t:
+        t = t.splitlines()[0].strip()
+    if (t.startswith('"') and t.endswith('"')) or (t.startswith("“") and t.endswith("”")):
+        t = t[1:-1].strip()
+    t = re.sub(r'^\s*(?:\d+[\.\)]\s+|[-*•]\s+)', '', t)
+    return t.strip('"“”').strip()
+
+
+def cargar_titulo() -> str:
+    """Lee el título de 01_temas/tema_actual.json."""
+    if not RUTA_TEMA_ACTUAL.exists():
+        logger.error(f"❌ No se encontró {RUTA_TEMA_ACTUAL}")
+        return ""
     try:
-        with open(TEMAS_JSON_PATH, "r", encoding="utf-8") as f:
+        with open(RUTA_TEMA_ACTUAL, "r", encoding="utf-8") as f:
             data = json.load(f)
+        if isinstance(data, dict):
+            return limpiar_titulo(data.get("tema", ""))
+        logger.error("⚠️ El JSON de tema_actual no es un dict válido.")
+        return ""
+    except Exception:
+        logger.exception("💥 Error al leer el tema actual.")
+        return ""
 
-        # Acepta tanto lista como diccionario con clave "temas"
-        if isinstance(data, list):
-            temas = [t for t in data if isinstance(t, str) and t.strip()]
-        elif isinstance(data, dict) and "temas" in data:
-            temas = [t for t in data.get("temas", []) if isinstance(t, str) and t.strip()]
-        else:
-            logger.error(f"Formato de JSON inesperado en {TEMAS_JSON_PATH}")
-            return None
 
-        if not temas:
-            logger.warning("⚠️ No hay temas pendientes disponibles.")
-            return None
-
-        tema = temas.pop(0)
-        logger.info(f"📌 Tema seleccionado: {tema}")
-
-        # Reescribe el JSON con los temas restantes
-        with open(TEMAS_JSON_PATH, "w", encoding="utf-8") as f:
-            json.dump(temas, f, ensure_ascii=False, indent=2)
-
-        # Registra en historial
-        historial = []
-        if TEMAS_USADOS_PATH.exists():
-            try:
-                with open(TEMAS_USADOS_PATH, "r", encoding="utf-8") as fu:
-                    historial = json.load(fu) if isinstance(json.load(fu), list) else []
-            except Exception:
-                historial = []
-
-        historial.append({"tema": tema, "fecha": datetime.now().isoformat()})
-        with open(TEMAS_USADOS_PATH, "w", encoding="utf-8") as fu:
-            json.dump(historial, fu, ensure_ascii=False, indent=2)
-
-        return tema
-
-    except json.JSONDecodeError:
-        logger.error("❌ Error de parseo JSON en el archivo de temas.", exc_info=True)
-    except Exception as e:
-        logger.error(f"Error al procesar la cola de temas: {str(e)}", exc_info=True)
-    return None
-
-# ----------------------------
-# Generación del artículo
-# ----------------------------
-def generar_articulo(tema):
-    """Genera un artículo técnico completo a partir de un tema."""
+def generar_articulo(titulo: str) -> str:
+    """Llama a OpenAI y genera el cuerpo del artículo."""
     try:
-        prompt = f"""
-Actúa como redactor técnico profesional especializado en IA, ciencia de datos y finanzas.
-Redacta un artículo narrativo y profundo de entre 1500 y 2000 palabras (mínimo 1500) en español,
-sobre el siguiente tema: {tema}.
-
-Instrucciones:
-- Tono profesional con 80% contenido técnico y 20% humor inteligente.
-- No usar títulos explícitos, el texto debe fluir con transiciones naturales.
-- Abrir con anécdota o dato impactante, incluir explicaciones técnicas con analogías,
-  referencias breves a estudios o expertos, casos de uso, y predicciones a 2-5 años.
-- Concluir con un resumen y una llamada a la acción.
-- Párrafos cortos y fáciles de leer, sin fragmentos de código, máximo un emoji por transición.
-"""
-
-        response = client.chat.completions.create(
+        logger.info(f"🧠 Generando artículo para: {titulo!r}")
+        resp = client.chat.completions.create(
             model=MODELO,
             messages=[
-                {"role": "system", "content": "Eres un ingeniero senior que escribe artículos técnicos de IA y finanzas en español con humor sutil."},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": (
+                        "Eres un experto en IA aplicada a finanzas, negocios y datos. "
+                        "Creas contenido técnico, profundo y bien estructurado."
+                    ),
+                },
+                {"role": "user", "content": PROMPT_TEMPLATE.format(titulo=titulo)},
             ],
             temperature=TEMPERATURE,
-            max_tokens=6000
+            max_tokens=MAX_TOKENS,
         )
-        texto = response.choices[0].message.content.strip()
-        # Elimina comillas innecesarias si el modelo devuelve el título entrecomillado
-        if texto.startswith('"') and texto.endswith('"'):
-            texto = texto[1:-1].strip()
-        return texto
-    except Exception as e:
-        logger.error(f"Error al generar artículo: {str(e)}", exc_info=True)
-        return None
+        return resp.choices[0].message.content or ""
+    except Exception:
+        logger.exception("💥 Error al generar el artículo con OpenAI")
+        return ""
 
-# ----------------------------
-# Guardado del artículo
-# ----------------------------
-def guardar_articulo(tema, contenido):
-    """Guarda el artículo como Markdown."""
-    try:
-        fecha = datetime.now().strftime("%d-%m-%y")
-        palabras_clave = [
-            p for p in tema.lower().split()
-            if p not in ["de", "para", "en", "y", "con", "como", "con"]
-            and len(p) > 3 and p.isalpha()
-        ][:3]
-        palabras_str = "_".join(palabras_clave) or "articulo"
-        nombre_archivo = ARTICULOS_DIR / f"ART_{fecha}_{palabras_str}.md"
 
-        with open(nombre_archivo, "w", encoding="utf-8") as f:
-            f.write(contenido)
+def guardar_articulo(titulo: str, contenido: str):
+    data = {
+        "titulo": titulo,
+        "contenido": contenido,
+        "generado_en": datetime.utcnow().isoformat() + "Z",
+    }
+    with open(RUTA_SALIDA, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    logger.info(f"💾 Artículo guardado en {RUTA_SALIDA}")
 
-        logger.info(f"✅ Artículo guardado en: {nombre_archivo}")
-        logger.info(f"📝 Longitud aproximada: {len(contenido.split())} palabras.")
-        return nombre_archivo
-    except Exception as e:
-        logger.error(f"Error al guardar artículo: {str(e)}", exc_info=True)
-        return None
 
-# ----------------------------
-# Ejecución principal
-# ----------------------------
 if __name__ == "__main__":
-    logger.info("==== INICIO GENERACIÓN DE ARTÍCULO ====")
-    tema = seleccionar_tema()
-    if not tema:
-        logger.error("🚫 No se pudo seleccionar un tema válido.")
-        exit(1)
+    logger.info("=" * 60)
+    logger.info("🚀 INICIO GENERACIÓN DE ARTÍCULO")
 
-    articulo = generar_articulo(tema)
+    titulo = cargar_titulo()
+    if not titulo:
+        logger.error("🚫 No se pudo cargar un título válido. Abortando.")
+        sys.exit(1)
+
+    articulo = generar_articulo(titulo)
     if not articulo:
-        logger.error("❌ Falló la generación del artículo.")
-        exit(1)
+        logger.error("🚫 El modelo no devolvió contenido. Abortando.")
+        sys.exit(1)
 
-    guardar_articulo(tema, articulo)
-    logger.info("==== FINALIZADO ====")
+    guardar_articulo(titulo, articulo)
+    logger.info(f"✅ Artículo generado para: {titulo}")
+    logger.info("🏁 FINALIZADO")
+    logger.info("=" * 60)
 
 
 

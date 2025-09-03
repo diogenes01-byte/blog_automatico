@@ -1,87 +1,73 @@
-name: Blog Automation Workflow
+name: blog_automatico
 
 on:
-  push:
-    branches:
-      - main
-  schedule:
-    - cron: '0 9 * * 1,3,5'   # Lunes, Miércoles y Viernes 09:00 UTC
   workflow_dispatch:
+  schedule:
+    - cron: "0 8 * * 1,3,5"   # lunes, miércoles, viernes a las 08:00 UTC
 
 jobs:
-  automate:
+  generar-blog:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
-    env:
-      BLOG_OPENIA_KEY: ${{ secrets.BLOG_OPENIA_KEY }}
-      GMAIL_KEY: ${{ secrets.GMAIL_KEY }}
 
     steps:
-    # 1. Descargar artifact de la ejecución anterior (si existe)
-    - name: Descargar artifact de temas
-      uses: actions/download-artifact@v4
-      with:
-        name: temas-pendientes
-        path: 01_temas
-      continue-on-error: true   # evita que falle si no hay artifact todavía
+      - name: 📥 Checkout repo
+        uses: actions/checkout@v4
 
-    # 2. Checkout del repo
-    - name: Checkout repo
-      uses: actions/checkout@v4
+      - name: 🔧 Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-    # 3. Configurar Python
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
+      - name: 📦 Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install openai
 
-    # 4. Instalar dependencias
-    - name: Install dependencies
-      run: |
-        pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install openai nltk python-dotenv requests
-        python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
+      - name: 🔑 Configurar variables de entorno
+        env:
+          BLOG_OPENIA_KEY: ${{ secrets.BLOG_OPENIA_KEY }}
+        run: echo "✅ Variable de entorno lista"
 
-    # 5. Asegurar estructura de directorios
-    - name: Create directory structure
-      run: |
-        mkdir -p 01_temas 02_articulos/outputs 03_imagenes logs
+      # -------------------------
+      # Paso 1 - Generar tema único
+      # -------------------------
+      - name: 📝 Generar tema
+        env:
+          BLOG_OPENIA_KEY: ${{ secrets.BLOG_OPENIA_KEY }}
+        run: |
+          python 01_temas/generacion_tema.py
+          echo "✅ Tema generado"
 
-    # 6. Generar temas (usa el JSON descargado si existe)
-    - name: Generate topics
-      run: python generacion_temas.py
-      working-directory: ./01_temas
+      - name: 📤 Subir artifact - Tema
+        uses: actions/upload-artifact@v4
+        with:
+          name: tema-actual
+          path: 01_temas/tema_actual.json
+          retention-days: 30
 
-    # 7. Subir artifact actualizado de temas
-    - name: Upload temas artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: temas-pendientes
-        path: 01_temas/temas_pendientes.json
+      # -------------------------
+      # Paso 2 - Generar artículo
+      # -------------------------
+      - name: 📥 Descargar tema
+        uses: actions/download-artifact@v4
+        with:
+          name: tema-actual
+          path: 01_temas
 
-    # 8. Generar artículos
-    - name: Generate articles
-      run: python generacion_articulos.py
-      working-directory: ./02_articulos
+      - name: ✍️ Generar artículo
+        env:
+          BLOG_OPENIA_KEY: ${{ secrets.BLOG_OPENIA_KEY }}
+        run: |
+          python 02_articulos/generacion_articulos.py
 
-    # 9. Generar imágenes
-    - name: Generate images
-      run: python generacion_imagen.py
-      working-directory: ./03_imagenes
+      - name: 📤 Subir artifact - Artículo
+        uses: actions/upload-artifact@v4
+        with:
+          name: articulo-generado
+          path: 02_articulos/articulo_generado.json
+          retention-days: 30
 
-    # 10. Enviar correo
-    - name: Send email
-      run: python envio_email.py
-      working-directory: ./04_email
+      - name: ✅ Fin
+        run: echo "Workflow completado correctamente."
 
-    # 11. Subir outputs (artículos + imágenes) como artifacts del build
-    - name: Upload blog outputs
-      uses: actions/upload-artifact@v4
-      with:
-        name: blog-output
-        path: |
-          02_articulos/outputs/*.md
-          03_imagenes/*.png
 

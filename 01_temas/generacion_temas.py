@@ -1,7 +1,10 @@
+# 01_temas/generacion_temas.py
+
 import os
+import re
+import json
 import sys
 import io
-import json
 import logging
 from pathlib import Path
 from datetime import datetime
@@ -9,131 +12,155 @@ from logging.handlers import RotatingFileHandler
 from openai import OpenAI
 
 # ----------------------------
-# Configuración
+# Configuración general
 # ----------------------------
-MODELO = "gpt-4"  # o "gpt-3.5-turbo" si prefieres
-OPENAI_API_KEY = os.getenv("BLOG_OPENIA_KEY")
-client = OpenAI(api_key=OPENAI_API_KEY)
-
-TEMPERATURE = 0.7
-MAX_TOKENS = 1000
-NUM_TEMAS = 10
-UMBRAL_TEMAS = 3
-
 BASE_DIR = Path(__file__).parent.parent
 LOG_DIR = BASE_DIR / "logs"
-LOG_DIR.mkdir(exist_ok=True)
+LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-RUTA_COLA_TEMAS = Path(__file__).parent / "temas_pendientes.json"
+RUTA_TEMA_ACTUAL = Path(__file__).parent / "tema_actual.json"
+
+# Modelo y API
+MODELO = "gpt-4o"  # Consistente con la carpeta 02
+OPENAI_API_KEY = os.getenv("BLOG_OPENIA_KEY")
+TEMPERATURE = 0.8
+MAX_TOKENS = 300
 
 # ----------------------------
-# Logging
+# Logging (UTF-8 + rotación)
 # ----------------------------
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    handlers=[
-        RotatingFileHandler(LOG_DIR / "generador_temas.log", maxBytes=5*1024*1024,
-                            backupCount=3, encoding="utf-8"),
-        logging.StreamHandler()
-    ]
-)
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger.handlers.clear()
+logger.addHandler(
+    RotatingFileHandler(
+        LOG_DIR / "generador_tema_actual.log",
+        maxBytes=5 * 1024 * 1024,
+        backupCount=3,
+        encoding="utf-8",
+    )
+)
+logger.addHandler(logging.StreamHandler())
 
 # ----------------------------
-# Prompt de generación
+# Cliente OpenAI
 # ----------------------------
-PROMPT = f"""
-Genera una lista de {NUM_TEMAS} temas innovadores sobre Inteligencia Artificial, Machine Learning,
-Ciencia de Datos y su aplicación en finanzas, contabilidad y economía.
-El objetivo es combinar lo mejor de la tecnología de datos y el mundo financiero.
+if not OPENAI_API_KEY:
+    logger.critical("❌ Falta la variable de entorno BLOG_OPENIA_KEY.")
+    sys.exit(1)
 
-Requisitos:
-1. Temas específicos, técnicos y con aplicación práctica (ej.: "Optimización de carteras de inversión mediante aprendizaje por refuerzo").
-2. Evitar temas genéricos como "Qué es IA" o "Introducción a Machine Learning".
-3. Un tema por línea, sin numeración ni caracteres especiales.
-4. Lenguaje en español.
-"""
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 # ----------------------------
-# Funciones
+# Prompt (un solo título)
 # ----------------------------
-def leer_temas_pendientes():
-    if RUTA_COLA_TEMAS.exists():
-        try:
-            with open(RUTA_COLA_TEMAS, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if isinstance(data, list):
-                return [t.strip() for t in data if t.strip()]
-        except json.JSONDecodeError:
-            logger.warning("⚠️ JSON corrupto, iniciando con lista vacía.")
-    return []
+PROMPT = """
+Genera exactamente 1 título (una sola línea) para un artículo técnico en español que combine:
+- Inteligencia Artificial / Machine Learning / Deep Learning / Ingeniería de datos
+- Con aplicaciones concretas a finanzas, economía, contabilidad, mercados o riesgo
 
-def guardar_temas_pendientes(lista):
-    with open(RUTA_COLA_TEMAS, "w", encoding="utf-8") as f:
-        json.dump(lista, f, ensure_ascii=False, indent=2)
+Requisitos estrictos:
+1) Título específico y orientado a práctica o arquitectura técnica (no generalidades).
+2) Evita por completo temas de salud, medicina o biomedicina.
+3) Prohibidas las frases o variantes: "Qué es", "Introducción a", "Guía básica", "Fundamentos de", "Historia de",
+   "Beneficios de", "Ventajas de", "Desventajas de", "Panorama general", "Conceptos básicos".
+4) Sin numeraciones, sin viñetas, sin comillas, sin emojis, una sola línea.
+5) Longitud orientativa: 70-120 caracteres.
 
-def generar_con_ia(prompt):
+Ejemplos de estilo (NO los repitas):
+- Optimización de carteras con aprendizaje por refuerzo y restricciones de riesgo no lineales
+- Detección de anomalías en pagos instantáneos con autoencoders y grafos transaccionales
+- Evaluación contrafactual de estrategias algorítmicas con modelos causales estructurales
+
+Devuelve solo el título, nada más.
+""".strip()
+
+
+def limpiar_titulo(texto: str) -> str:
+    """Quita comillas, numeraciones/viñetas y espacios redundantes."""
+    if texto is None:
+        return ""
+    t = texto.strip()
+
+    # Si viene con múltiples líneas, quedarse con la primera no vacía
+    if "\n" in t:
+        for line in t.splitlines():
+            line = line.strip()
+            if line:
+                t = line
+                break
+
+    # Quitar comillas de borde
+    if (t.startswith('"') and t.endswith('"')) or (t.startswith("“") and t.endswith("”")):
+        t = t[1:-1].strip()
+
+    # Quitar viñetas o numeración al inicio: "1. ", "1) ", "- ", "* ", "• "
+    t = re.sub(r'^\s*(?:\d+[\.\)]\s+|[-*•]\s+)', '', t)
+
+    # Colapsar espacios
+    t = re.sub(r'\s+', ' ', t).strip()
+
+    # Asegurar que no termina en comillas sueltas
+    t = t.strip('"“”').strip()
+    return t
+
+
+def generar_titulo() -> str:
+    """Llama a OpenAI para generar un único título y lo limpia."""
     try:
-        response = client.chat.completions.create(
+        logger.info("🧠 Solicitando 1 título al modelo...")
+        resp = client.chat.completions.create(
             model=MODELO,
             messages=[
-                {"role": "system",
-                 "content": "Eres un experto que propone títulos técnicos innovadores y relevantes."},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": (
+                        "Eres un arquitecto de datos y ML con foco en finanzas y economía. "
+                        "Propones títulos técnicos, específicos y aplicados."
+                    ),
+                },
+                {"role": "user", "content": PROMPT},
             ],
-            max_tokens=MAX_TOKENS,
             temperature=TEMPERATURE,
-            top_p=0.9
+            max_tokens=MAX_TOKENS,
         )
-        contenido = response.choices[0].message.content
-        logger.info("📥 Respuesta cruda recibida de la API:")
-        logger.info(contenido)
-        return contenido
+        crudo = resp.choices[0].message.content or ""
+        logger.info(f"📥 Respuesta cruda: {crudo!r}")
+        limpio = limpiar_titulo(crudo)
+        logger.info(f"🧹 Título limpio: {limpio!r}")
+        return limpio
     except Exception:
-        logger.exception("Error al llamar a OpenAI")
-        return None
+        logger.exception("💥 Error al generar el título con OpenAI")
+        return ""
 
-def generar_temas():
-    respuesta = generar_con_ia(PROMPT)
-    if not respuesta:
-        return []
 
-    temas = []
-    for t in respuesta.split("\n"):
-        t = t.strip().lstrip("-* ").strip()
-        if t:
-            temas.append(t)
-    return temas[:NUM_TEMAS]
+def guardar_tema_actual(titulo: str) -> None:
+    data = {
+        "tema": titulo,
+        "generado_en": datetime.utcnow().isoformat() + "Z",
+    }
+    with open(RUTA_TEMA_ACTUAL, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    logger.info(f"💾 Tema guardado en {RUTA_TEMA_ACTUAL}")
 
-# ----------------------------
-# Ejecución principal
-# ----------------------------
+
 if __name__ == "__main__":
-    logger.info("==== INICIO GENERACIÓN DE TEMAS ====")
+    logger.info("=" * 60)
+    logger.info("🚀 INICIO GENERACIÓN DE TEMA ÚNICO")
 
-    existentes = leer_temas_pendientes()
-    logger.info(f"Temas existentes: {len(existentes)}")
-    logger.info(f"Lista actual: {existentes}")
+    titulo = generar_titulo()
+    if not titulo:
+        logger.error("❌ No se obtuvo un título válido; abortando.")
+        sys.exit(1)
 
-    if len(existentes) < UMBRAL_TEMAS:
-        logger.info("🔄 Menos de 3 temas, generando nuevos...")
-        nuevos = generar_temas()
-        if nuevos:
-            combinados = existentes + [t for t in nuevos if t not in existentes]
-            guardar_temas_pendientes(combinados)
-            logger.info(f"✅ Se añadieron {len(nuevos)} nuevos temas.")
-            logger.info(f"Lista completa actualizada: {combinados}")
-        else:
-            logger.warning("⚠️ No se generaron temas.")
-    else:
-        logger.info("⏸️ Hay suficientes temas, no se generaron nuevos.")
+    guardar_tema_actual(titulo)
+    logger.info(f"✅ Título final: {titulo}")
+    logger.info("🏁 FINALIZADO")
+    logger.info("=" * 60)
 
-    logger.info("==== FINALIZADO ====")
 
 
 

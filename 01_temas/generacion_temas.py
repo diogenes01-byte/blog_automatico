@@ -1,102 +1,114 @@
 import os
+import sys
+import io
+import json
 import logging
 from pathlib import Path
 from datetime import datetime
+from logging.handlers import RotatingFileHandler
 from openai import OpenAI
-import json
 
 # ----------------------------
 # Configuración
 # ----------------------------
-BASE_DIR = Path(__file__).parent.parent
-LOG_DIR = BASE_DIR / "logs"
-TEMAS_JSON_PATH = BASE_DIR / "01_temas" / "titulos.json"
-NUM_TEMAS_TOTAL = 10  # Número total de temas que siempre queremos mantener
-MODELO = "gpt-4"
+MODELO = "gpt-4"  # o "gpt-3.5-turbo" si prefieres
+OPENAI_API_KEY = os.getenv("BLOG_OPENIA_KEY")
+client = OpenAI(api_key=OPENAI_API_KEY)
+
 TEMPERATURE = 0.7
 MAX_TOKENS = 1000
+NUM_TEMAS = 10
+UMBRAL_TEMAS = 3
 
+BASE_DIR = Path(__file__).parent.parent
+LOG_DIR = BASE_DIR / "logs"
 LOG_DIR.mkdir(exist_ok=True)
+
+RUTA_COLA_TEMAS = Path(__file__).parent / "temas_pendientes.json"
 
 # ----------------------------
 # Logging
 # ----------------------------
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
     handlers=[
-        logging.FileHandler(LOG_DIR / "generador_temas.log", encoding="utf-8"),
+        RotatingFileHandler(LOG_DIR / "generador_temas.log", maxBytes=5*1024*1024,
+                            backupCount=3, encoding="utf-8"),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
 
 # ----------------------------
-# Configuración de OpenAI
+# Prompt de generación
 # ----------------------------
-client = OpenAI(api_key=os.getenv("BLOG_OPENIA_KEY"))
-
-# ----------------------------
-# Prompt de generación de temas
-# ----------------------------
-def generar_prompt(cantidad):
-    return f"""
-Genera {cantidad} temas altamente innovadores y orientados al futuro para artículos técnicos sobre:
-- Inteligencia Artificial avanzada y aplicada
-- Ciencia de Datos de nueva generación
-- Ingeniería de Machine Learning y MLOps
-- Modelos fundacionales, agentes autónomos y sistemas multiagente
-- Data mesh, data fabric y arquitecturas descentralizadas de datos
-- Explainable AI (XAI), auditoría algorítmica y confianza en IA
-- Edge AI, análisis en tiempo real y procesamiento en el dispositivo
-- IA generativa para descubrimientos científicos y simulaciones
-- Integración de IA con computación cuántica y HPC
-- Automatización cognitiva y toma de decisiones autónoma
-- Aplicaciones de IA y datos en finanzas, economía y contabilidad
+PROMPT = f"""
+Genera una lista de {NUM_TEMAS} temas innovadores sobre Inteligencia Artificial, Machine Learning,
+Ciencia de Datos y su aplicación en finanzas, contabilidad y economía.
+El objetivo es combinar lo mejor de la tecnología de datos y el mundo financiero.
 
 Requisitos:
-1. Temas concretos, con aplicación práctica o técnica detallada.
-2. Evitar temas genéricos como 'Qué es Machine Learning'.
-3. Evitar salud, medicina o tópicos repetidos.
-4. Formato: un tema por línea, sin numeración ni caracteres especiales.
+1. Temas específicos, técnicos y con aplicación práctica (ej.: "Optimización de carteras de inversión mediante aprendizaje por refuerzo").
+2. Evitar temas genéricos como "Qué es IA" o "Introducción a Machine Learning".
+3. Un tema por línea, sin numeración ni caracteres especiales.
+4. Lenguaje en español.
 """
 
 # ----------------------------
-# Función para generar temas con IA
+# Funciones
 # ----------------------------
-def generar_temas(cantidad):
+def leer_temas_pendientes():
+    if RUTA_COLA_TEMAS.exists():
+        try:
+            with open(RUTA_COLA_TEMAS, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, list):
+                return [t.strip() for t in data if t.strip()]
+        except json.JSONDecodeError:
+            logger.warning("⚠️ JSON corrupto, iniciando con lista vacía.")
+    return []
+
+def guardar_temas_pendientes(lista):
+    with open(RUTA_COLA_TEMAS, "w", encoding="utf-8") as f:
+        json.dump(lista, f, ensure_ascii=False, indent=2)
+
+def generar_con_ia(prompt):
     try:
-        prompt = generar_prompt(cantidad)
         response = client.chat.completions.create(
             model=MODELO,
             messages=[
-                {"role": "system", "content": "Eres un experto en IA que genera temas técnicos innovadores y aplicables a finanzas y economía."},
+                {"role": "system",
+                 "content": "Eres un experto que propone títulos técnicos innovadores y relevantes."},
                 {"role": "user", "content": prompt}
             ],
+            max_tokens=MAX_TOKENS,
             temperature=TEMPERATURE,
-            max_tokens=MAX_TOKENS
+            top_p=0.9
         )
         contenido = response.choices[0].message.content
-        temas = [line.strip().strip('"') for line in contenido.split("\n") if line.strip()]
-        logger.info(f"Temas generados por IA: {temas}")
-        return temas[:cantidad]
-    except Exception as e:
-        logger.error(f"Error al generar temas: {str(e)}", exc_info=True)
+        logger.info("📥 Respuesta cruda recibida de la API:")
+        logger.info(contenido)
+        return contenido
+    except Exception:
+        logger.exception("Error al llamar a OpenAI")
+        return None
+
+def generar_temas():
+    respuesta = generar_con_ia(PROMPT)
+    if not respuesta:
         return []
 
-# ----------------------------
-# Leer y guardar JSON
-# ----------------------------
-def leer_temas_json():
-    if TEMAS_JSON_PATH.exists():
-        with open(TEMAS_JSON_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data.get("temas", [])
-    return []
-
-def guardar_temas_json(temas):
-    with open(TEMAS_JSON_PATH, "w", encoding="utf-8") as f:
-        json.dump({"temas": temas}, f, ensure_ascii=False, indent=2)
+    temas = []
+    for t in respuesta.split("\n"):
+        t = t.strip().lstrip("-* ").strip()
+        if t:
+            temas.append(t)
+    return temas[:NUM_TEMAS]
 
 # ----------------------------
 # Ejecución principal
@@ -104,28 +116,24 @@ def guardar_temas_json(temas):
 if __name__ == "__main__":
     logger.info("==== INICIO GENERACIÓN DE TEMAS ====")
 
-    # Leer temas existentes
-    temas_actuales = leer_temas_json()
-    logger.info(f"Temas existentes: {len(temas_actuales)}")
-    logger.info(f"Lista actual de temas: {temas_actuales}")
+    existentes = leer_temas_pendientes()
+    logger.info(f"Temas existentes: {len(existentes)}")
+    logger.info(f"Lista actual: {existentes}")
 
-    # Calcular cantidad faltante
-    cantidad_faltante = NUM_TEMAS_TOTAL - len(temas_actuales)
-    if cantidad_faltante <= 0:
-        logger.info(f"No se requieren nuevos temas. Ya hay {len(temas_actuales)} disponibles.")
-    else:
-        logger.info(f"Generando {cantidad_faltante} temas nuevos...")
-        nuevos_temas = generar_temas(cantidad_faltante)
-        # Evitar duplicados
-        nuevos_unicos = [t for t in nuevos_temas if t not in temas_actuales]
-        if nuevos_unicos:
-            temas_actuales.extend(nuevos_unicos)
-            guardar_temas_json(temas_actuales)
-            logger.info(f"✅ Se añadieron {len(nuevos_unicos)} nuevos temas.")
-            logger.info(f"Lista completa actualizada: {temas_actuales}")
+    if len(existentes) < UMBRAL_TEMAS:
+        logger.info("🔄 Menos de 3 temas, generando nuevos...")
+        nuevos = generar_temas()
+        if nuevos:
+            combinados = existentes + [t for t in nuevos if t not in existentes]
+            guardar_temas_pendientes(combinados)
+            logger.info(f"✅ Se añadieron {len(nuevos)} nuevos temas.")
+            logger.info(f"Lista completa actualizada: {combinados}")
         else:
-            logger.info("ℹ️ No se generaron nuevos temas únicos.")
+            logger.warning("⚠️ No se generaron temas.")
+    else:
+        logger.info("⏸️ Hay suficientes temas, no se generaron nuevos.")
 
     logger.info("==== FINALIZADO ====")
+
 
 

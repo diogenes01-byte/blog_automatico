@@ -5,7 +5,7 @@ on:
     branches:
       - main
   schedule:
-    - cron: '0 9 * * 1,3,5'   # Lunes, Miércoles y Viernes a las 09:00 UTC
+    - cron: '0 9 * * 1,3,5'   # Lunes, Miércoles y Viernes 09:00 UTC
   workflow_dispatch:
 
 jobs:
@@ -18,14 +18,25 @@ jobs:
       GMAIL_KEY: ${{ secrets.GMAIL_KEY }}
 
     steps:
+    # 1. Descargar artifact de la ejecución anterior (si existe)
+    - name: Descargar artifact de temas
+      uses: actions/download-artifact@v4
+      with:
+        name: temas-pendientes
+        path: 01_temas
+      continue-on-error: true   # evita que falle si no hay artifact todavía
+
+    # 2. Checkout del repo
     - name: Checkout repo
       uses: actions/checkout@v4
 
+    # 3. Configurar Python
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
 
+    # 4. Instalar dependencias
     - name: Install dependencies
       run: |
         pip install --upgrade pip
@@ -33,48 +44,44 @@ jobs:
         pip install openai nltk python-dotenv requests
         python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
 
+    # 5. Asegurar estructura de directorios
     - name: Create directory structure
       run: |
         mkdir -p 01_temas 02_articulos/outputs 03_imagenes logs
 
-    # === Manejo de artifacts ===
-    - name: Download temas previos
-      uses: actions/download-artifact@v4
-      with:
-        name: temas-pendientes
-        path: 01_temas
-        if-no-files-found: ignore
-
-    # === Generación de contenido ===
+    # 6. Generar temas (usa el JSON descargado si existe)
     - name: Generate topics
       run: python generacion_temas.py
       working-directory: ./01_temas
 
-    - name: Upload temas actualizados
+    # 7. Subir artifact actualizado de temas
+    - name: Upload temas artifact
       uses: actions/upload-artifact@v4
       with:
         name: temas-pendientes
         path: 01_temas/temas_pendientes.json
-        if-no-files-found: warn
 
+    # 8. Generar artículos
     - name: Generate articles
       run: python generacion_articulos.py
       working-directory: ./02_articulos
 
+    # 9. Generar imágenes
     - name: Generate images
       run: python generacion_imagen.py
       working-directory: ./03_imagenes
 
+    # 10. Enviar correo
     - name: Send email
       run: python envio_email.py
       working-directory: ./04_email
 
-    # Guardamos los outputs del artículo e imagen también como artifacts
-    - name: Upload artifacts
+    # 11. Subir outputs (artículos + imágenes) como artifacts del build
+    - name: Upload blog outputs
       uses: actions/upload-artifact@v4
       with:
         name: blog-output
         path: |
           02_articulos/outputs/*.md
           03_imagenes/*.png
-        if-no-files-found: warn
+

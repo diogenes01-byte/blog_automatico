@@ -7,22 +7,24 @@ import io
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
 from openai import OpenAI
+import json
+import random
 
 # ----------------------------
-# Configuración de OpenAI (CORREGIDO)
+# Configuración de OpenAI
 # ----------------------------
-MODELO = "gpt-4"  # Añade esta línea (o usa "gpt-3.5-turbo" si prefieres)
-OPENAI_API_KEY = os.getenv("BLOG_OPENIA_KEY")  # Asegúrate que coincide con tu secret en GitHub
-client = OpenAI(api_key=OPENAI_API_KEY)  # Usa la variable correcta
+MODELO = "gpt-4"
+OPENAI_API_KEY = os.getenv("BLOG_OPENIA_KEY")
+client = OpenAI(api_key=OPENAI_API_KEY)
 TEMPERATURE = 0.7
 MAX_TOKENS = 1000
 NUM_TEMAS = 10
 
 # ----------------------------
-# Parámetros del sistema de cola
+# Umbral y rutas
 # ----------------------------
-UMBRAL_TEMAS = 3  # Si hay menos de este número, se generan más
-RUTA_COLA_TEMAS = Path(__file__).parent / "temas_pendientes.txt"
+UMBRAL_TEMAS = 3
+RUTA_JSON_TEMAS = Path(__file__).parent / "titulos.json"
 
 # ----------------------------
 # Configuración de logging
@@ -51,31 +53,36 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ----------------------------
-# Prompt de generación
+# Prompt de generación ajustado
 # ----------------------------
 PROMPT = f"""
 Genera una lista de {NUM_TEMAS} temas altamente innovadores y orientados al futuro para artículos técnicos sobre:
-- Inteligencia Artificial avanzada y aplicada
-- Ciencia de Datos de nueva generación
-- Ingeniería de Machine Learning y MLOps a gran escala
-- Modelos fundacionales, agentes autónomos y sistemas multiagente
-- Data mesh, data fabric y arquitecturas descentralizadas de datos
-- Explainable AI (XAI), auditoría algorítmica y confianza en IA
-- Edge AI, análisis en tiempo real y procesamiento en el dispositivo
-- IA generativa para descubrimientos científicos, simulaciones y diseño de nuevos materiales
-- Integración de IA con computación cuántica y HPC (High Performance Computing)
-- Automatización cognitiva y toma de decisiones autónoma
+- Inteligencia Artificial, Machine Learning y Deep Learning aplicados a datos financieros
+- Ciencia de Datos avanzada en finanzas, economía y contabilidad
+- Modelos predictivos, algoritmos de trading y análisis de riesgos
+- Automatización de procesos financieros con IA y sistemas de decisión autónomos
+- Data mesh, data fabric y arquitecturas de datos orientadas a empresas y bancos
+- IA generativa para optimización financiera, simulaciones económicas y previsiones de mercado
+- Integración de IA con Big Data y High Performance Computing en finanzas
+- Explainable AI (XAI) para auditoría financiera y cumplimiento regulatorio
 
 Requisitos:
-1. Temas concretos, con aplicación práctica o técnica detallada (ej: "Optimización de entrenamiento distribuido de LLMs en clústeres heterogéneos").
-2. Evitar temas genéricos como 'Qué es Machine Learning'.
-3. Formato requerido:
+1. Temas concretos, con aplicación práctica o técnica detallada (ej: "Optimización de modelos predictivos para riesgo de crédito usando LLMs").
+2. Evitar temas genéricos como 'Qué es Machine Learning' o 'Introducción a la IA'.
+3. Evitar temas de salud, medicina o biotecnología.
+4. Formato requerido:
    - Un tema por línea
    - Sin numeración
    - Sin caracteres especiales como *, -, etc.
    - Solo el texto del tema
 """
 
+# ----------------------------
+# Palabras prohibidas para sesgo
+# ----------------------------
+PALABRAS_PROHIBIDAS = [
+    "qué es", "introducción a", "basics", "fundamentos", "principios"
+]
 
 # ----------------------------
 # Función para llamar a OpenAI
@@ -85,7 +92,7 @@ def generar_con_ia(prompt):
         response = client.chat.completions.create(
             model=MODELO,
             messages=[
-                {"role": "system", "content": "Eres un experto en IA que genera temas técnicos innovadores y bien estructurados."},
+                {"role": "system", "content": "Eres un experto en IA y datos aplicados a finanzas, economía y contabilidad, generando temas técnicos innovadores y bien estructurados."},
                 {"role": "user", "content": prompt}
             ],
             max_tokens=MAX_TOKENS,
@@ -127,25 +134,29 @@ def generar_temas():
         return []
 
 # ----------------------------
-# Manejo de la cola de temas
+# Filtrado anti-sesgo y anti-genéricos
 # ----------------------------
-def leer_temas_pendientes():
-    if RUTA_COLA_TEMAS.exists():
-        with open(RUTA_COLA_TEMAS, "r", encoding="utf-8") as f:
-            return [line.strip() for line in f if line.strip()]
-    return []
+def filtrar_temas(temas):
+    filtrados = []
+    for t in temas:
+        if len(t.split()) < 5:  # descartar demasiado cortos
+            continue
+        if any(p.lower() in t.lower() for p in PALABRAS_PROHIBIDAS):
+            continue
+        filtrados.append(t)
+    return filtrados
 
-def guardar_temas_pendientes(nuevos_temas):
-    existentes = set(leer_temas_pendientes())
-    nuevos_unicos = [t for t in nuevos_temas if t not in existentes]
-    
-    if nuevos_unicos:
-        with open(RUTA_COLA_TEMAS, "a", encoding="utf-8") as f:
-            for tema in nuevos_unicos:
-                f.write(f"{tema}\n")
-        logger.info(f"✅ {len(nuevos_unicos)} nuevos temas añadidos a la cola.")
-    else:
-        logger.info("ℹ️ No hay nuevos temas únicos para añadir.")
+# ----------------------------
+# Guardar JSON
+# ----------------------------
+def guardar_json(temas):
+    data = {
+        "temas": temas,
+        "generado_en": datetime.utcnow().isoformat()
+    }
+    with open(RUTA_JSON_TEMAS, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    logger.info(f"💾 Guardados {len(temas)} temas en {RUTA_JSON_TEMAS}")
 
 # ----------------------------
 # Ejecución principal
@@ -157,16 +168,23 @@ if __name__ == "__main__":
     logger.info(f"🕒 Inicio: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
 
     try:
-        temas_actuales = leer_temas_pendientes()
+        if not RUTA_JSON_TEMAS.exists():
+            temas_actuales = []
+        else:
+            with open(RUTA_JSON_TEMAS, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                temas_actuales = data.get("temas", [])
+
         logger.info(f"📊 Temas pendientes actuales: {len(temas_actuales)}")
 
         if len(temas_actuales) < UMBRAL_TEMAS:
             temas_nuevos = generar_temas()
-            if temas_nuevos:
-                guardar_temas_pendientes(temas_nuevos)
+            temas_filtrados = filtrar_temas(temas_nuevos)
+            if temas_filtrados:
+                guardar_json(temas_filtrados)
                 estado = "ÉXITO"
             else:
-                logger.warning("⚠️ No se generaron temas.")
+                logger.warning("⚠️ No se generaron temas válidos tras el filtrado.")
                 estado = "FALLIDO"
         else:
             logger.info(f"⏸️ No se generaron nuevos temas. Hay suficientes temas pendientes (≥ {UMBRAL_TEMAS}).")
@@ -183,3 +201,4 @@ if __name__ == "__main__":
     logger.info(f"🕒 Fin: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info("✅ EJECUCIÓN COMPLETADA")
     logger.info("="*60 + "\n")
+

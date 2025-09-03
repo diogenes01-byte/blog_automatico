@@ -37,23 +37,39 @@ jobs:
       run: |
         mkdir -p 01_temas 02_articulos/outputs 03_imagenes logs
 
-    # PASOS ACTUALIZADOS - Rutas corregidas:
+    # === GENERAR TEMAS ===
     - name: Generate topics
       run: python generacion_temas.py
-      working-directory: ./01_temas  # Cambiado de './temas' a './01_temas'
+      working-directory: ./01_temas
+
+    - name: Upload titles JSON
+      uses: actions/upload-artifact@v4
+      with:
+        name: titulos
+        path: 01_temas/titulos.json
+
+    # === GENERAR ARTÍCULOS ===
+    - name: Download titles JSON
+      uses: actions/download-artifact@v4
+      with:
+        name: titulos
+        path: 02_articulos/
 
     - name: Generate articles
       run: python generacion_articulos.py
-      working-directory: ./02_articulos  # Cambiado de './articulos' a './02_articulos'
+      working-directory: ./02_articulos
 
+    # === GENERAR IMÁGENES ===
     - name: Generate images
       run: python generacion_imagen.py
-      working-directory: ./03_imagenes  # Cambiado de './imagenes' a './03_imagenes'
+      working-directory: ./03_imagenes
 
+    # === ENVIAR EMAIL ===
     - name: Send email
-      run: python envio_email.py  # Este puede quedarse en la raíz si está ahí
+      run: python envio_email.py
       working-directory: ./04_email
 
+    # === SUBIR OUTPUTS FINALES ===
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:

@@ -3,6 +3,8 @@ import logging
 from pathlib import Path
 from datetime import datetime
 from openai import OpenAI
+import json
+import random
 
 # ----------------------------
 # Configuración de rutas
@@ -10,8 +12,7 @@ from openai import OpenAI
 BASE_DIR = Path(__file__).parent.parent
 LOG_DIR = BASE_DIR / "logs"
 ARTICULOS_DIR = BASE_DIR / "02_articulos" / "outputs"
-TEMAS_PENDIENTES_PATH = BASE_DIR / "01_temas" / "temas_pendientes.txt"
-TEMAS_USADOS_PATH = BASE_DIR / "01_temas" / "temas_usados.txt"
+TITULOS_JSON_PATH = BASE_DIR / "01_temas" / "titulos.json"
 
 ARTICULOS_DIR.mkdir(parents=True, exist_ok=True)
 LOG_DIR.mkdir(exist_ok=True)
@@ -34,38 +35,38 @@ logger = logging.getLogger(__name__)
 # ----------------------------
 client = OpenAI(api_key=os.getenv("BLOG_OPENIA_KEY"))
 MODELO = "gpt-4o"
-TEMPERATURE = 0.7
+TEMPERATURE = 0.8
 
 # ----------------------------
 # Selección y manejo del tema
 # ----------------------------
 def seleccionar_tema():
-    """Toma el primer tema de la cola, lo elimina y lo guarda en el historial."""
+    """Selecciona un tema al azar del JSON y actualiza la lista."""
     try:
-        if not TEMAS_PENDIENTES_PATH.exists():
-            logger.error("❌ El archivo de temas pendientes no existe.")
+        if not TITULOS_JSON_PATH.exists():
+            logger.error("❌ El archivo titulos.json no existe.")
             return None
 
-        with open(TEMAS_PENDIENTES_PATH, "r", encoding="utf-8") as f:
-            temas = [line.strip() for line in f if line.strip()]
+        with open(TITULOS_JSON_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            temas = data.get("temas", [])
 
         if not temas:
             logger.warning("⚠️ No hay temas pendientes disponibles.")
             return None
 
-        tema = temas.pop(0)  # Toma el primer tema de la lista
+        # Elegir un tema al azar
+        tema = random.choice(temas)
+        temas.remove(tema)
 
-        # Actualiza el archivo de temas pendientes
-        with open(TEMAS_PENDIENTES_PATH, "w", encoding="utf-8") as f:
-            f.write("\n".join(temas))
-
-        # Registra el tema en el historial
-        with open(TEMAS_USADOS_PATH, "a", encoding="utf-8") as f:
-            f.write(tema + "\n")
+        # Guardar JSON actualizado
+        data["temas"] = temas
+        with open(TITULOS_JSON_PATH, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
 
         return tema
     except Exception as e:
-        logger.error(f"Error al procesar la cola de temas: {str(e)}", exc_info=True)
+        logger.error(f"Error al procesar titulos.json: {str(e)}", exc_info=True)
         return None
 
 # ----------------------------
@@ -74,53 +75,42 @@ def seleccionar_tema():
 def generar_articulo(tema):
     """Genera un artículo técnico completo a partir de un tema."""
     try:
-        prompt = f"""  
-    ROL  
-    Actúa como redactor técnico profesional especializado en divulgación tecnológica y científica, con habilidad para combinar rigor técnico y humor inteligente, manteniendo al lector enganchado de principio a fin.  
+        prompt = f"""
+ROL
+Eres un redactor profesional experto en Inteligencia Artificial, Machine Learning y Deep Learning aplicados a finanzas, economía y contabilidad. Combina rigor técnico con narrativa atractiva y humor sutil.
 
-    TAREA  
-    Escribe un artículo técnico en español de entre 1200 y 1500 palabras sobre {tema} en español, con una narrativa continua y sin títulos o subtítulos explícitos, que fluya con transiciones naturales y cambios de tono para separar las secciones implícitas.  
+TAREA
+Escribe un artículo técnico en español de entre 1500 y 2000 palabras sobre: "{tema}". Mantén narrativa continua, transiciones naturales y cambios de tono para separar secciones implícitas. Evita títulos o subtítulos explícitos.
 
-    CONTEXTO  
-    El artículo está destinado a un público profesional y curioso, que busca profundidad técnica pero disfruta de un toque de ironía o sarcasmo inteligente. El contenido debe poder ser usado como cuerpo principal de un correo o como entrada de blog.  
+CONTEXTO
+Público profesional y curioso, que busca profundidad técnica y aplicaciones prácticas en el mundo financiero y de datos.
 
-    RAZONAMIENTO  
-    - Abrir con una anécdota o situación relatable, datos contundentes y una promesa clara de valor al lector.  
-    - Explicar los conceptos clave con analogías creativas, referencias culturales o históricas, y ejemplos reales.  
-    - Incluir casos prácticos y aprendizajes derivados de ellos.  
-    - Incorporar citas breves de expertos, papers o fuentes reconocidas para reforzar los argumentos (ejemplo: “según un estudio del MIT en 2023…”).  
-    - Explorar funcionalidades avanzadas o perspectivas futuras sobre el tema.  
-    - Cerrar con un resumen claro, recursos útiles y una llamada a la acción convincente.  
-    - Mantener una proporción aproximada de 80% contenido técnico y 20% humor.  
-    - Usar emojis con moderación (máximo uno por transición).  
+REQUISITOS
+- Abrir con anécdota o situación relatable ligada a finanzas o economía.
+- Explicar conceptos clave con analogías, ejemplos reales y casos financieros.
+- Incluir predicciones y tendencias a 2-5 años sobre la temática.
+- Incorporar citas breves de papers, expertos o fuentes reconocidas.
+- Cierre con resumen claro, recursos útiles y llamada a la acción.
+- Mantener entre 80% contenido técnico y 20% humor ligero.
+- No usar fragmentos de código.
+- Párrafos cortos y lectura fluida.
+- Introducir frases puente o micro-resúmenes para evitar bloques largos.
+- Usar emojis con moderación (máximo uno por transición).
+- No temas genéricos, salud o medicina.
 
-    SALIDA  
-    Generar un artículo narrativo que incluya:  
-    - Historia inicial que conecte emocionalmente.  
-    - Explicaciones técnicas profundas con analogías.  
-    - Casos de uso reales y aprendizajes.  
-    - Predicciones y tendencias a 2-5 años.  
-    - Inclusión de citas para respaldar afirmaciones clave.  
-    - Conclusión con recursos y llamada a la acción.  
-
-    CONDICIONES  
-    - No entregues un artículo MENOR de 1200 palabras.  
-    - Sin fragmentos de código.  
-    - Párrafos cortos y de lectura fluida.  
-    - Usar un tono atractivo desde la primera línea.  
-    - Incluir variaciones de tono para mantener el ritmo narrativo.  
-    - Introducir frases-puente o micro-resúmenes intermedios para dar respiro y evitar bloques de texto largos.  
-    - No abusar de tecnicismos sin explicación.  
-    """  
+CONDICIONES
+- No entregar menos de 1500 palabras.
+- Mantener tono atractivo y coherente durante todo el artículo.
+"""
 
         response = client.chat.completions.create(
             model=MODELO,
             messages=[
-                {"role": "system", "content": "Eres un ingeniero senior que escribe artículos técnicos con humor inteligente en español."},
+                {"role": "system", "content": "Eres un ingeniero senior que escribe artículos técnicos con humor inteligente y aplicaciones en finanzas, economía y datos."},
                 {"role": "user", "content": prompt}
             ],
             temperature=TEMPERATURE,
-            max_tokens=6000
+            max_tokens=7500
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
@@ -177,4 +167,5 @@ if __name__ == "__main__":
         logger.error("❌ Error al guardar el artículo.")
 
     logger.info("==== FINALIZADO ====")
+
 

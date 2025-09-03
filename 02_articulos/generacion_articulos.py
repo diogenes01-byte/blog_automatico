@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 # ----------------------------
 client = OpenAI(api_key=os.getenv("BLOG_OPENIA_KEY"))
 MODELO = "gpt-4o"
-TEMPERATURE = 0.8
+TEMPERATURE = 0.7
 
 # ----------------------------
 # Selección y manejo del tema
@@ -57,9 +57,12 @@ def seleccionar_tema():
 
         # Elegir un tema al azar
         tema = random.choice(temas)
-        temas.remove(tema)
+        # Eliminar comillas sobrantes si existen
+        tema = tema.strip('"')  # elimina comillas al inicio y final
+        # tema = tema.replace('"', '')  # opcional: elimina todas las comillas
 
-        # Guardar JSON actualizado
+        # Eliminar el tema de la lista y guardar JSON actualizado
+        temas.remove(tema)
         data["temas"] = temas
         with open(TITULOS_JSON_PATH, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)

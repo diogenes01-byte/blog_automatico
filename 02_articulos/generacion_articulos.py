@@ -132,7 +132,7 @@ def generar_articulo(titulo: str) -> str:
 def guardar_articulo(titulo: str, contenido: str):
     data = {
         "titulo": titulo,
-        "contenido": contenido,
+        "cuerpo": contenido,
         "generado_en": datetime.utcnow().isoformat() + "Z",
     }
     with open(RUTA_SALIDA, "w", encoding="utf-8") as f:

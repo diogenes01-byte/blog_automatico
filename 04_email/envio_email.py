@@ -9,7 +9,7 @@ from email import encoders
 from pathlib import Path
 import logging
 from openai import OpenAI
-import markdown  # Necesario para convertir Markdown a HTML
+import re
 
 # ----------------------------
 # Configuración de logging
@@ -62,7 +62,6 @@ def generate_subject_from_article(content: str) -> str:
             temperature=0.7,
         )
         ai_title = response.choices[0].message.content.strip()
-
         hook = random.choice(HOOKS)
         emoji = random.choice(EMOJIS)
         subject = f"{hook} {ai_title} {emoji}"
@@ -70,6 +69,25 @@ def generate_subject_from_article(content: str) -> str:
     except Exception as e:
         logger.error(f"❌ Error generando asunto con IA: {str(e)}", exc_info=True)
         return "📬 Artículo generado automáticamente"
+
+# ----------------------------
+# Convertir Markdown básico a HTML
+# ----------------------------
+def markdown_to_html(md_text: str) -> str:
+    html = md_text
+    # Encabezados
+    html = re.sub(r'###### (.+)', r'<h6>\1</h6>', html)
+    html = re.sub(r'##### (.+)', r'<h5>\1</h5>', html)
+    html = re.sub(r'#### (.+)', r'<h4>\1</h4>', html)
+    html = re.sub(r'### (.+)', r'<h3>\1</h3>', html)
+    html = re.sub(r'## (.+)', r'<h2>\1</h2>', html)
+    html = re.sub(r'# (.+)', r'<h1>\1</h1>', html)
+    # Negrita y cursiva
+    html = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', html)
+    html = re.sub(r'\*(.+?)\*', r'<i>\1</i>', html)
+    # Saltos de línea
+    html = html.replace('\n', '<br>')
+    return html
 
 # ----------------------------
 # Función principal
@@ -91,9 +109,7 @@ def send_email():
             data = json.load(f)
         article_title = data.get("titulo", "Artículo generado")
         content_md = data.get("contenido", "")
-
-        # Convertir Markdown a HTML
-        content_html = markdown.markdown(content_md, extensions=['extra', 'nl2br'])
+        content_html = markdown_to_html(content_md)
 
         image_name = f"{ARTICLE_PATH.stem}.png"
         image_path = IMAGE_DIR / image_name
@@ -105,11 +121,12 @@ def send_email():
         msg['To'] = EMAIL_TO
         msg['Subject'] = subject
 
+        # Cuerpo HTML
         html_content = f"""
         <html>
           <body style="font-family: Arial, sans-serif; line-height: 1.6; text-align: justify;">
             <h2 style="color:#2d3748;">{article_title}</h2>
-            <div style="background: #f7fafc; padding: 20px; border-radius: 8px;">
+            <div style="background: #f7fafc; padding: 20px; border-radius: 8px; text-align: justify;">
               {content_html}
             </div>
             <p style="margin-top: 20px; color: #4a5568; text-align: center;">
@@ -136,17 +153,16 @@ def send_email():
         else:
             logger.warning(f"⚠ Imagen no encontrada en: {image_path}")
 
+        # Enviar correo
         logger.info("Conectando con servidor SMTP...")
         GMAIL_KEY = os.getenv("GMAIL_KEY")
-
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(EMAIL_FROM, GMAIL_KEY)
             server.send_message(msg)
             logger.info("✅ Correo enviado exitosamente")
 
     except smtplib.SMTPAuthenticationError:
-        logger.error("""
-        ❌ Error de autenticación. Verifica:
+        logger.error("""❌ Error de autenticación. Verifica:
         1. Que la verificación en 2 pasos esté ACTIVADA
         2. Que hayas generado una CONTRASEÑA DE APLICACIÓN
         3. Que estés usando la contraseña de aplicación (16 caracteres)
@@ -161,6 +177,7 @@ if __name__ == "__main__":
     logger.info("==== INICIO DE ENVÍO ====")
     send_email()
     logger.info("==== PROCESO COMPLETADO ====")
+
 
 
 

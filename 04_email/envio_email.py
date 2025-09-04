@@ -1,6 +1,7 @@
 import os
 import smtplib
 import random
+import json
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -77,21 +78,21 @@ def send_email():
         EMAIL_FROM = "lugo.diogenes01@gmail.com"
         EMAIL_TO = "lugo.diogenes01@gmail.com"
 
-        ARTICLE_DIR = BASE_DIR / "02_articulos" / "outputs"
+        ARTICLE_PATH = BASE_DIR / "02_articulos" / "articulo_generado.json"
         IMAGE_DIR = BASE_DIR / "03_imagenes"
 
-        articles = list(ARTICLE_DIR.glob("ART_*.md"))
-        if not articles:
-            logger.error("No se encontraron artículos en la carpeta")
+        if not ARTICLE_PATH.exists():
+            logger.error("No se encontró el archivo de artículo")
             return
 
-        latest_article = max(articles, key=lambda x: x.stat().st_mtime)
-        article_title = latest_article.stem.replace("ART_", "").replace("_", " ")
-        image_name = f"{latest_article.stem}.png"
-        image_path = IMAGE_DIR / image_name
+        # Leer JSON y extraer contenido
+        with open(ARTICLE_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        article_title = data.get("titulo", "Artículo generado")
+        content = data.get("cuerpo", "")
 
-        with open(latest_article, "r", encoding="utf-8") as f:
-            content = f.read()
+        image_name = f"{ARTICLE_PATH.stem}.png"
+        image_path = IMAGE_DIR / image_name
 
         subject = generate_subject_from_article(content)
 
@@ -100,10 +101,10 @@ def send_email():
         msg['To'] = EMAIL_TO
         msg['Subject'] = subject
 
-        # --- Cuerpo HTML con texto justificado ---
         html_content = f"""
         <html>
           <body style="font-family: Arial, sans-serif; line-height: 1.6; text-align: justify;">
+            <h2 style="color:#2d3748;">{article_title}</h2>
             <div style="background: #f7fafc; padding: 20px; border-radius: 8px; text-align: justify;">
               <pre style="white-space: pre-wrap; font-size: 16px; text-align: justify;">{content}</pre>
             </div>
@@ -115,22 +116,19 @@ def send_email():
         """
         msg.attach(MIMEText(html_content, 'html', 'utf-8'))
 
-        # --- Adjuntar imagen ---
+        # Adjuntar imagen si existe
         if image_path.exists():
             logger.info(f"✔ Imagen encontrada: {image_path}")
-            try:
-                with open(image_path, "rb") as file:
-                    part = MIMEBase("image", "png")
-                    part.set_payload(file.read())
-                    encoders.encode_base64(part)
-                    part.add_header(
-                        "Content-Disposition",
-                        f'attachment; filename="{image_path.name}"'
-                    )
-                    msg.attach(part)
-                    logger.info(f"✔ Imagen '{image_path.name}' adjuntada correctamente")
-            except Exception as e:
-                logger.error(f"❌ Error al adjuntar imagen: {str(e)}", exc_info=True)
+            with open(image_path, "rb") as file:
+                part = MIMEBase("image", "png")
+                part.set_payload(file.read())
+                encoders.encode_base64(part)
+                part.add_header(
+                    "Content-Disposition",
+                    f'attachment; filename="{image_path.name}"'
+                )
+                msg.attach(part)
+                logger.info(f"✔ Imagen '{image_path.name}' adjuntada correctamente")
         else:
             logger.warning(f"⚠ Imagen no encontrada en: {image_path}")
 

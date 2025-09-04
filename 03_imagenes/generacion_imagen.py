@@ -12,6 +12,7 @@ from pathlib import Path
 import logging
 import re
 import numpy as np
+import json   # ← añadido para leer JSON
 
 # ----------------------------
 # Configuración inicial
@@ -19,7 +20,8 @@ import numpy as np
 BASE_DIR = Path(__file__).parent.parent
 LOG_DIR = BASE_DIR / "logs"
 IMAGES_DIR = BASE_DIR / "03_imagenes"
-ARTICLES_DIR = BASE_DIR / "02_articulos" / "outputs"
+# Ajuste: ahora tomamos el artículo generado en la raíz de 02_articulos
+ARTICLE_FILE = BASE_DIR / "02_articulos" / "articulo_generado.json"
 
 # Crear carpetas necesarias
 LOG_DIR.mkdir(exist_ok=True)
@@ -37,15 +39,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ----------------------------
-# Clase ImageGenerator (optimizada con embeddings)
+# Clase ImageGenerator
 # ----------------------------
 class ImageGenerator:
     def __init__(self, api_key: str):
         self.api_key = api_key
         self.client = OpenAI(api_key=api_key)
         self.stop_words = set(stopwords.words('spanish') + stopwords.words('english'))
-        
-        # Descargar recursos NLTK si no están
+
         try:
             nltk.data.find('tokenizers/punkt')
             nltk.data.find('corpora/stopwords')
@@ -54,9 +55,7 @@ class ImageGenerator:
             nltk.download('stopwords')
 
     def extract_keywords_semantic(self, text: str, resumen: str) -> List[str]:
-        """Extrae keywords usando embeddings y relevancia semántica"""
         try:
-            # Tokenización básica
             palabras = re.findall(r'\b[a-zA-ZáéíóúñÁÉÍÓÚÑ]{4,}\b', text.lower())
             stopwords_basicas = {
                 "esta", "este", "para", "como", "donde", "cuando", "todo",
@@ -65,13 +64,11 @@ class ImageGenerator:
             }
             candidatos = list(set(p for p in palabras if p not in stopwords_basicas))
 
-            # Embedding del resumen
             resumen_vec = self.client.embeddings.create(
                 model="text-embedding-3-small",
                 input=resumen
             ).data[0].embedding
 
-            # Calcular similitud coseno para cada candidato
             resultados = []
             for palabra in candidatos:
                 vec = self.client.embeddings.create(
@@ -89,7 +86,6 @@ class ImageGenerator:
             return None
 
     def extract_keywords_fallback(self, text: str) -> List[str]:
-        """Método de respaldo usando NLTK y frecuencia"""
         try:
             words = [
                 w for w in word_tokenize(text.lower())
@@ -105,22 +101,19 @@ class ImageGenerator:
 
             counter = Counter(words)
             mas_comunes = [palabra for palabra, _ in counter.most_common(15)]
-            seleccion = random.sample(mas_comunes, min(5, len(mas_comunes)))
-            return seleccion
+            return random.sample(mas_comunes, min(5, len(mas_comunes)))
 
         except Exception as e:
             logger.warning(f"Error en fallback NLTK: {str(e)}")
             return ["technology", "innovation", "AI"]
 
     def extract_keywords(self, text: str, resumen: str) -> List[str]:
-        """Híbrido: primero semántica, luego fallback"""
         keywords_sem = self.extract_keywords_semantic(text, resumen)
         if keywords_sem and len(keywords_sem) >= 3:
             return keywords_sem
         return self.extract_keywords_fallback(text)
 
     def generate_prompt(self, content: str) -> str:
-        """Genera un prompt optimizado y coherente con el artículo para DALL·E 3"""
         resumen = ' '.join(content.strip().split()[:50])
         keywords = self.extract_keywords(content, resumen)
 
@@ -141,10 +134,19 @@ class ImageGenerator:
         )
 
     def generate_image(self, article_path: Path) -> Optional[Path]:
-        """Genera y guarda la imagen con reintentos automáticos"""
         try:
             with open(article_path, 'r', encoding='utf-8') as f:
-                content = f.read()
+                # Ajuste: leer JSON y quedarnos con el campo texto
+                try:
+                    data = json.load(f)
+                    if isinstance(data, dict) and "contenido" in data:
+                        content = data["contenido"]
+                    else:
+                        # fallback por si el json guarda el texto sin clave
+                        content = json.dumps(data, ensure_ascii=False)
+                except json.JSONDecodeError:
+                    # fallback si es texto plano
+                    content = f.read()
 
             prompt = self.generate_prompt(content)
             logger.info(f"Generando imagen para: {article_path.name}")
@@ -158,11 +160,10 @@ class ImageGenerator:
                 n=1
             )
 
-            # ⇩⇩⇩ AJUSTE ÚNICO: guardar con el mismo nombre del artículo + .png
             image_path = IMAGES_DIR / f"{article_path.stem}.png"
             with open(image_path, 'wb') as f:
                 f.write(requests.get(response.data[0].url).content)
-            
+
             logger.info(f"✅ Imagen guardada: {image_path}")
             return image_path
 
@@ -179,12 +180,11 @@ if __name__ == "__main__":
         logger.error("❌ Configura tu API key de OpenAI")
     else:
         generator = ImageGenerator(API_KEY)
-        articles = list(ARTICLES_DIR.glob("ART_*.md"))
-        if not articles:
-            logger.error("No hay artículos en la carpeta")
+        if not ARTICLE_FILE.exists():
+            logger.error("No se encontró articulo_generado.json")
         else:
-            latest_article = max(articles, key=lambda x: x.stat().st_mtime)
-            generator.generate_image(latest_article)
+            generator.generate_image(ARTICLE_FILE)
+
 
 
 

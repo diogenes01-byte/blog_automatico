@@ -1,3 +1,5 @@
+# envio_email.py
+
 import os
 import smtplib
 import random
@@ -9,7 +11,6 @@ from email import encoders
 from pathlib import Path
 import logging
 from openai import OpenAI
-import re
 
 # ----------------------------
 # Configuración de logging
@@ -71,25 +72,6 @@ def generate_subject_from_article(content: str) -> str:
         return "📬 Artículo generado automáticamente"
 
 # ----------------------------
-# Convertir Markdown básico a HTML
-# ----------------------------
-def markdown_to_html(md_text: str) -> str:
-    html = md_text
-    # Encabezados
-    html = re.sub(r'###### (.+)', r'<h6>\1</h6>', html)
-    html = re.sub(r'##### (.+)', r'<h5>\1</h5>', html)
-    html = re.sub(r'#### (.+)', r'<h4>\1</h4>', html)
-    html = re.sub(r'### (.+)', r'<h3>\1</h3>', html)
-    html = re.sub(r'## (.+)', r'<h2>\1</h2>', html)
-    html = re.sub(r'# (.+)', r'<h1>\1</h1>', html)
-    # Negrita y cursiva
-    html = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', html)
-    html = re.sub(r'\*(.+?)\*', r'<i>\1</i>', html)
-    # Saltos de línea
-    html = html.replace('\n', '<br>')
-    return html
-
-# ----------------------------
 # Función principal
 # ----------------------------
 def send_email():
@@ -107,27 +89,27 @@ def send_email():
         # Leer JSON y extraer contenido
         with open(ARTICLE_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
+
         article_title = data.get("titulo", "Artículo generado")
-        content_md = data.get("contenido", "")
-        content_html = markdown_to_html(content_md)
+        content = data.get("contenido", "")  # <- Aquí usamos "contenido"
 
         image_name = f"{ARTICLE_PATH.stem}.png"
         image_path = IMAGE_DIR / image_name
 
-        subject = generate_subject_from_article(content_md)
+        subject = generate_subject_from_article(content)
 
         msg = MIMEMultipart()
         msg['From'] = EMAIL_FROM
         msg['To'] = EMAIL_TO
         msg['Subject'] = subject
 
-        # Cuerpo HTML
+        # --- Cuerpo HTML con texto justificado ---
         html_content = f"""
         <html>
           <body style="font-family: Arial, sans-serif; line-height: 1.6; text-align: justify;">
             <h2 style="color:#2d3748;">{article_title}</h2>
             <div style="background: #f7fafc; padding: 20px; border-radius: 8px; text-align: justify;">
-              {content_html}
+              <pre style="white-space: pre-wrap; font-size: 16px; text-align: justify;">{content}</pre>
             </div>
             <p style="margin-top: 20px; color: #4a5568; text-align: center;">
               <i>✍️ Redactado por Chart G. PT, tu redactor de IA de confianza</i>
@@ -137,7 +119,7 @@ def send_email():
         """
         msg.attach(MIMEText(html_content, 'html', 'utf-8'))
 
-        # Adjuntar imagen si existe
+        # --- Adjuntar imagen si existe ---
         if image_path.exists():
             logger.info(f"✔ Imagen encontrada: {image_path}")
             with open(image_path, "rb") as file:
@@ -153,16 +135,17 @@ def send_email():
         else:
             logger.warning(f"⚠ Imagen no encontrada en: {image_path}")
 
-        # Enviar correo
         logger.info("Conectando con servidor SMTP...")
         GMAIL_KEY = os.getenv("GMAIL_KEY")
+
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(EMAIL_FROM, GMAIL_KEY)
             server.send_message(msg)
             logger.info("✅ Correo enviado exitosamente")
 
     except smtplib.SMTPAuthenticationError:
-        logger.error("""❌ Error de autenticación. Verifica:
+        logger.error("""
+        ❌ Error de autenticación. Verifica:
         1. Que la verificación en 2 pasos esté ACTIVADA
         2. Que hayas generado una CONTRASEÑA DE APLICACIÓN
         3. Que estés usando la contraseña de aplicación (16 caracteres)

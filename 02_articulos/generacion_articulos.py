@@ -96,7 +96,10 @@ def cargar_titulo() -> str:
         with open(RUTA_TEMA_ACTUAL, "r", encoding="utf-8") as f:
             data = json.load(f)
         if isinstance(data, dict):
-            return limpiar_titulo(data.get("tema", ""))
+            titulo = limpiar_titulo(data.get("tema", ""))
+            if not titulo:
+                logger.error("❌ El título en tema_actual.json está vacío")
+            return titulo
         logger.error("⚠️ El JSON de tema_actual no es un dict válido.")
         return ""
     except Exception:
@@ -106,6 +109,9 @@ def cargar_titulo() -> str:
 
 def generar_articulo(titulo: str) -> str:
     """Llama a OpenAI y genera el cuerpo del artículo."""
+    if not titulo.strip():
+        logger.error("❌ El título cargado está vacío. Abortando generación.")
+        return ""
     try:
         logger.info(f"🧠 Generando artículo para: {titulo!r}")
         resp = client.chat.completions.create(
@@ -130,9 +136,10 @@ def generar_articulo(titulo: str) -> str:
 
 
 def guardar_articulo(titulo: str, contenido: str):
+    """Guarda el artículo en JSON con clave 'contenido' para compatibilidad con envío de email."""
     data = {
         "titulo": titulo,
-        "cuerpo": contenido,
+        "contenido": contenido,  # <- Cambiado de 'cuerpo' a 'contenido'
         "generado_en": datetime.utcnow().isoformat() + "Z",
     }
     with open(RUTA_SALIDA, "w", encoding="utf-8") as f:
@@ -158,6 +165,7 @@ if __name__ == "__main__":
     logger.info(f"✅ Artículo generado para: {titulo}")
     logger.info("🏁 FINALIZADO")
     logger.info("=" * 60)
+
 
 
 

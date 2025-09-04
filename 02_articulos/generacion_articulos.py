@@ -56,24 +56,51 @@ if not OPENAI_API_KEY:
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 # ----------------------------------------------------
-# Prompt
+# Prompt como plantilla limpia
 # ----------------------------------------------------
 PROMPT_TEMPLATE = """
-Redacta un artículo técnico y narrativo en español, de entre 1500 y 2000 palabras,
-a partir del siguiente título:
+ROL: Actúa como redactor técnico profesional especializado en divulgación tecnológica y científica enfocado a finanzas y negocios, 
+con habilidad para combinar rigor técnico y humor inteligente, manteniendo al lector enganchado de principio a fin.
 
-"{titulo}"
+TAREA: Escribe un artículo técnico en español de entre 1200 y 1500 palabras sobre {titulo} 
+con narrativa continua, sin títulos o subtítulos explícitos, y con transiciones naturales y cambios de tono 
+para separar secciones implícitas.
 
-Requisitos:
-1) Enfócate en Inteligencia Artificial, Machine Learning, Deep Learning, Ingeniería de datos
-   y su aplicación concreta a finanzas, contabilidad, economía o mercados.
-2) Incluye explicaciones técnicas y ejemplos prácticos, pero con claridad para público experto.
-3) Evita frases genéricas, salud/medicina y auto-referencias ("en este artículo hablaremos…").
-4) Usa subtítulos, párrafos bien estructurados y tono profesional.
-5) No incluyas conclusiones triviales; aporta ideas de arquitectura, tendencias y retos futuros.
+CONTEXTO: El artículo está destinado a un público profesional y curioso, que busca profundidad técnica 
+pero disfruta de un toque de ironía o sarcasmo inteligente. El contenido debe poder usarse como cuerpo 
+principal de un correo o como entrada de blog.
+
+RAZONAMIENTO:
+  - Abrir con una anécdota o situación relatable, datos contundentes y una promesa clara de valor al lector.
+  - Explicar los conceptos clave con analogías creativas, referencias culturales o históricas, y ejemplos reales.
+  - Incluir casos prácticos y aprendizajes derivados de ellos.
+  - Incorporar citas breves de expertos, papers o fuentes reconocidas.
+  - Explorar funcionalidades avanzadas o perspectivas futuras sobre el tema.
+  - Cerrar con un resumen claro, recursos útiles y una llamada a la acción convincente.
+  - Mantener un poco de humor en el texto
+  - Usar emojis con moderación uno o dos maximos.
+
+SALIDA: Generar un artículo narrativo que incluya:
+  - Historia inicial que conecte emocionalmente.
+  - Explicaciones técnicas profundas con analogías.
+  - Casos de uso reales y aprendizajes.
+  - Predicciones y tendencias a 2-5 años.
+  - Inclusión de citas para respaldar afirmaciones clave.
+  - Conclusión con recursos y llamada a la acción.
+
+CONDICIONES:
+  - No entregues un artículo MENOR de 1200 palabras.
+  - Sin fragmentos de código.
+  - Párrafos cortos y de lectura fluida.
+  - Usar un tono atractivo desde la primera línea.
+  - Incluir variaciones de tono para mantener el ritmo narrativo.
+  - Introducir frases-puente o micro-resúmenes intermedios.
+  - No abusar de tecnicismos sin explicación.
 """.strip()
 
-
+# ----------------------------------------------------
+# Funciones auxiliares
+# ----------------------------------------------------
 def limpiar_titulo(t: str) -> str:
     """Elimina comillas, viñetas y espacios redundantes del título."""
     if not t:
@@ -96,10 +123,7 @@ def cargar_titulo() -> str:
         with open(RUTA_TEMA_ACTUAL, "r", encoding="utf-8") as f:
             data = json.load(f)
         if isinstance(data, dict):
-            titulo = limpiar_titulo(data.get("tema", ""))
-            if not titulo:
-                logger.error("❌ El título en tema_actual.json está vacío")
-            return titulo
+            return limpiar_titulo(data.get("tema", ""))
         logger.error("⚠️ El JSON de tema_actual no es un dict válido.")
         return ""
     except Exception:
@@ -109,9 +133,6 @@ def cargar_titulo() -> str:
 
 def generar_articulo(titulo: str) -> str:
     """Llama a OpenAI y genera el cuerpo del artículo."""
-    if not titulo.strip():
-        logger.error("❌ El título cargado está vacío. Abortando generación.")
-        return ""
     try:
         logger.info(f"🧠 Generando artículo para: {titulo!r}")
         resp = client.chat.completions.create(
@@ -136,10 +157,9 @@ def generar_articulo(titulo: str) -> str:
 
 
 def guardar_articulo(titulo: str, contenido: str):
-    """Guarda el artículo en JSON con clave 'contenido' para compatibilidad con envío de email."""
     data = {
         "titulo": titulo,
-        "contenido": contenido,  # <- Cambiado de 'cuerpo' a 'contenido'
+        "cuerpo": contenido,
         "generado_en": datetime.utcnow().isoformat() + "Z",
     }
     with open(RUTA_SALIDA, "w", encoding="utf-8") as f:
@@ -147,6 +167,9 @@ def guardar_articulo(titulo: str, contenido: str):
     logger.info(f"💾 Artículo guardado en {RUTA_SALIDA}")
 
 
+# ----------------------------------------------------
+# Main
+# ----------------------------------------------------
 if __name__ == "__main__":
     logger.info("=" * 60)
     logger.info("🚀 INICIO GENERACIÓN DE ARTÍCULO")
@@ -165,7 +188,6 @@ if __name__ == "__main__":
     logger.info(f"✅ Artículo generado para: {titulo}")
     logger.info("🏁 FINALIZADO")
     logger.info("=" * 60)
-
 
 
 

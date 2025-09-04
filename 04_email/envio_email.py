@@ -9,6 +9,7 @@ from email import encoders
 from pathlib import Path
 import logging
 from openai import OpenAI
+import markdown  # Necesario para convertir Markdown a HTML
 
 # ----------------------------
 # Configuración de logging
@@ -89,12 +90,15 @@ def send_email():
         with open(ARTICLE_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
         article_title = data.get("titulo", "Artículo generado")
-        content = data.get("cuerpo", "")
+        content_md = data.get("contenido", "")
+
+        # Convertir Markdown a HTML
+        content_html = markdown.markdown(content_md, extensions=['extra', 'nl2br'])
 
         image_name = f"{ARTICLE_PATH.stem}.png"
         image_path = IMAGE_DIR / image_name
 
-        subject = generate_subject_from_article(content)
+        subject = generate_subject_from_article(content_md)
 
         msg = MIMEMultipart()
         msg['From'] = EMAIL_FROM
@@ -105,8 +109,8 @@ def send_email():
         <html>
           <body style="font-family: Arial, sans-serif; line-height: 1.6; text-align: justify;">
             <h2 style="color:#2d3748;">{article_title}</h2>
-            <div style="background: #f7fafc; padding: 20px; border-radius: 8px; text-align: justify;">
-              <pre style="white-space: pre-wrap; font-size: 16px; text-align: justify;">{content}</pre>
+            <div style="background: #f7fafc; padding: 20px; border-radius: 8px;">
+              {content_html}
             </div>
             <p style="margin-top: 20px; color: #4a5568; text-align: center;">
               <i>✍️ Redactado por Chart G. PT, tu redactor de IA de confianza</i>
@@ -157,6 +161,7 @@ if __name__ == "__main__":
     logger.info("==== INICIO DE ENVÍO ====")
     send_email()
     logger.info("==== PROCESO COMPLETADO ====")
+
 
 
 

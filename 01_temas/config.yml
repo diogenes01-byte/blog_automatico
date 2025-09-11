@@ -11,7 +11,7 @@ archivos:
   log: "../logs/generador_tema_actual.log"
 
 prompt:
-  texto: |
+  template: |
     ROL: Eres un científico de datos senior con experiencia en negocios y finanzas.
     
     CONTEXTO: Debes generar un título técnico y atractivo para un artículo que conecte

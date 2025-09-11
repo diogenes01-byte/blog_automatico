@@ -15,7 +15,7 @@ MODEL = config["openai"]["model"]
 TEMPERATURE = config["openai"]["temperature"]
 MAX_TOKENS = config["openai"]["max_tokens"]
 
-PROMPT = config["prompt"]["tema"]
+PROMPT = config["prompt"]["template"]
 
 # ==========================
 # Configuración de logging

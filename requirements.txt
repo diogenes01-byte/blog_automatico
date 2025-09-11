@@ -2,3 +2,4 @@ nltk>=3.8
 openai>=1.0
 numpy
 markdown
+yaml

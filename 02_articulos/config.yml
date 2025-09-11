@@ -1,0 +1,44 @@
+# 02_articulos/config.yml
+
+openai:
+  model: "gpt-4o"
+  temperature: 0.8
+  max_tokens: 2000   # Espacio suficiente para 1200-1500 palabras
+
+paths:
+  tema_actual: "../01_temas/tema_actual.json"
+  salida: "articulo_generado.json"
+  log_dir: "../logs"
+  log_file: "generador_articulos.log"
+  historial: "historial.json"
+
+narrativas:
+  - "Enfoque narrativo profesional con tono serio y análisis profundo"
+  - "Estilo divulgativo ligero con ejemplos de la vida real"
+  - "Tono irónico con humor inteligente, manteniendo rigor técnico"
+  - "Perspectiva futurista y predictiva sobre tendencias en IA y finanzas"
+  - "Narrativa basada en storytelling de casos reales y aprendizajes"
+  - "Tono conversacional, cercano al lector ejecutivo, con micro-resúmenes"
+
+prompt: |
+  ROL: Actúa como redactor técnico profesional especializado en divulgación tecnológica y científica enfocado en finanzas y negocios.
+
+  TAREA: Escribe un artículo técnico en español sobre {titulo}, con narrativa continua, entre 1200 y 1500 palabras.
+  IMPORTANTE: Si el artículo no alcanza 1200 palabras, continúa desarrollando ideas, ejemplos, casos de uso y predicciones hasta superar 1200 palabras.
+
+  CONTEXTO: Público profesional y curioso, que busca profundidad técnica pero disfruta de un toque de {estilo}.
+
+  RAZONAMIENTO:
+    - Abrir con historia relatable + anécdota + relevancia.
+    - Explicar conceptos con analogías y ejemplos reales.
+    - Explorar casos prácticos, aprendizajes y perspectivas futuras.
+    - Mantener un poco de humor y uno o dos emojis máximo.
+    - Concluir con resumen, recursos y llamada a la acción.
+
+  SALIDA: Artículo narrativo y fluido que cumpla mínimo 1200 palabras.
+
+  CONDICIONES:
+    - Párrafos cortos y fáciles de leer.
+    - No incluir fragmentos de código.
+    - Variaciones de tono para mantener ritmo narrativo.
+    - Introducir frases-puente o micro-resúmenes intermedios cuando sea necesario.

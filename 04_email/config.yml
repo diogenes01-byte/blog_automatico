@@ -1,0 +1,10 @@
+email:
+  from: "lugo.diogenes01@gmail.com"
+  to:
+    - "lugo.diogenes01@gmail.com"
+  smtp_server: "smtp.gmail.com"
+  smtp_port: 465
+  subject_prefix: "📬 Nuevo artículo:"
+paths:
+  articulo: "02_articulos/articulo_generado.json"
+  imagenes: "03_imagenes"

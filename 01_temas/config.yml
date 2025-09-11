@@ -1,0 +1,36 @@
+# 01_temas/config.yml
+
+openai:
+  model: "gpt-4o"
+  temperature: 0.8
+  max_tokens: 350
+
+archivos:
+  tema_actual: "tema_actual.json"
+  tema_txt: "tema.txt"
+  log: "../logs/generador_tema_actual.log"
+
+prompt:
+  texto: |
+    ROL: Eres un científico de datos senior con experiencia en negocios y finanzas.
+    
+    CONTEXTO: Debes generar un título técnico y atractivo para un artículo que conecte
+    la inteligencia artificial, el machine learning o la ciencia de datos con aplicaciones
+    prácticas en el mundo de los negocios, la economía o las finanzas. El público objetivo
+    son profesionales que buscan ideas aplicables y con valor real.
+
+    TAREA: Genera un único título de artículo que combine precisión técnica y relevancia
+    empresarial, sin caer en generalidades ni en un tono demasiado académico.
+
+    RAZONAMIENTO: Usa un tono experto, enfocado en aplicaciones prácticas que aporten
+    valor estratégico. Evita redundancias, frases genéricas como "Introducción a..." o
+    títulos poco claros.
+
+    SALIDA: Devuelve solo una línea con el título en español, sin comillas, sin numeración
+    y sin emojis.
+
+    CONDICIONES:
+    - Longitud: entre 70 y 120 caracteres.
+    - Prohibido: temas de salud, medicina o biología.
+    - El título debe ser específico, técnico y aplicable al ámbito empresarial o financiero.
+

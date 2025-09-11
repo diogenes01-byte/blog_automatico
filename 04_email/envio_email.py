@@ -1,165 +1,147 @@
-# envio_email.py
-
 import os
 import smtplib
-import random
 import json
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email import encoders
-from pathlib import Path
 import logging
+import yaml
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
 from openai import OpenAI
 
-# ----------------------------
-# Configuración de logging
-# ----------------------------
-BASE_DIR = Path(__file__).parent.parent
-LOG_DIR = BASE_DIR / "logs"
-LOG_DIR.mkdir(exist_ok=True)
-
+# ------------------------
+# Logging
+# ------------------------
+LOG_DIR = "logs"
+os.makedirs(LOG_DIR, exist_ok=True)
 logging.basicConfig(
+    filename=os.path.join(LOG_DIR, "email.log"),
     level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.FileHandler(LOG_DIR / "04_enviar_email.log", encoding="utf-8"),
-        logging.StreamHandler()
-    ]
+    format="%(asctime)s [%(levelname)s] %(message)s",
 )
-logger = logging.getLogger(__name__)
 
-# ----------------------------
+# ------------------------
+# Cargar configuración
+# ------------------------
+with open("04_email/config.yml", "r", encoding="utf-8") as f:
+    config = yaml.safe_load(f)
+
+SMTP_SERVER = config["smtp"]["server"]
+SMTP_PORT = config["smtp"]["port"]
+EMAIL_USER = config["smtp"]["user"]
+EMAIL_PASS = os.getenv(config["smtp"]["password_env"])
+
+RECIPIENTS = config["recipients"]
+SUBJECT_PREFIX = config["email"]["subject_prefix"]
+
+ARTICLE_JSON = config["paths"]["article_json"]
+ARTICLE_MD = config["paths"]["article_md"]
+IMAGES_DIR = config["paths"]["images_dir"]
+
+# ------------------------
 # Cliente OpenAI
-# ----------------------------
+# ------------------------
 client = OpenAI(api_key=os.getenv("BLOG_OPENIA_KEY"))
 
-# ----------------------------
-# Lista de ganchos
-# ----------------------------
-HOOKS = [
-    "🚀 Descubre:", "🔥 No te pierdas:", "💡 Aprende sobre:",
-    "✨ Novedad:", "📊 Datos reveladores:", "📖 Lectura recomendada:",
-    "🎯 Clave del día:", "🤖 Tecnología en acción:", "🌍 Perspectiva global:"
-]
-EMOJIS = ["🚀", "🔥", "💡", "✨", "📊", "📖", "🎯", "🤖", "🌍"]
-
-# ----------------------------
-# Generar asunto inteligente
-# ----------------------------
-def generate_subject_from_article(content: str) -> str:
+def generar_asunto_ia(titulo, resumen):
+    prompt = f"""
+    Eres un asistente experto en comunicación.
+    Genera un asunto atractivo, profesional y breve para un email de blog
+    basado en el título y resumen proporcionados.
+    Título: {titulo}
+    Resumen: {resumen}
+    """
     try:
-        logger.info("Generando título con OpenAI...")
-        response = client.chat.completions.create(
+        resp = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "Eres un asistente que crea títulos llamativos y concisos basados en artículos. Devuelve solo un título breve."
-                },
-                {"role": "user", "content": content[:1500]}
-            ],
+            messages=[{"role": "user", "content": prompt}],
             max_tokens=30,
             temperature=0.7,
         )
-        ai_title = response.choices[0].message.content.strip()
-        hook = random.choice(HOOKS)
-        emoji = random.choice(EMOJIS)
-        subject = f"{hook} {ai_title} {emoji}"
-        return subject
+        return resp.choices[0].message.content.strip()
     except Exception as e:
-        logger.error(f"❌ Error generando asunto con IA: {str(e)}", exc_info=True)
-        return "📬 Artículo generado automáticamente"
+        logging.error(f"Error al generar asunto con IA: {e}")
+        return titulo  # fallback al título
 
-# ----------------------------
-# Función principal
-# ----------------------------
-def send_email():
+def construir_email():
+    # Leer artículo
     try:
-        EMAIL_FROM = "lugo.diogenes01@gmail.com"
-        EMAIL_TO = "lugo.diogenes01@gmail.com"
-
-        ARTICLE_PATH = BASE_DIR / "02_articulos" / "articulo_generado.json"
-        IMAGE_DIR = BASE_DIR / "03_imagenes"
-
-        if not ARTICLE_PATH.exists():
-            logger.error("No se encontró el archivo de artículo")
-            return
-
-        # Leer JSON y extraer contenido
-        with open(ARTICLE_PATH, "r", encoding="utf-8") as f:
+        with open(ARTICLE_JSON, "r", encoding="utf-8") as f:
             data = json.load(f)
-
-        article_title = data.get("titulo", "Artículo generado")
-        content = data.get("contenido", "")  # <- Aquí usamos "contenido"
-
-        image_name = f"{ARTICLE_PATH.stem}.png"
-        image_path = IMAGE_DIR / image_name
-
-        subject = generate_subject_from_article(content)
-
-        msg = MIMEMultipart()
-        msg['From'] = EMAIL_FROM
-        msg['To'] = EMAIL_TO
-        msg['Subject'] = subject
-
-        # --- Cuerpo HTML con texto justificado ---
-        html_content = f"""
-        <html>
-          <body style="font-family: Arial, sans-serif; line-height: 1.6; text-align: justify;">
-            <h2 style="color:#2d3748;">{article_title}</h2>
-            <div style="background: #f7fafc; padding: 20px; border-radius: 8px; text-align: justify;">
-              <pre style="white-space: pre-wrap; font-size: 16px; text-align: justify;">{content}</pre>
-            </div>
-            <p style="margin-top: 20px; color: #4a5568; text-align: center;">
-              <i>✍️ Redactado por Chart G. PT, tu redactor de IA de confianza</i>
-            </p>
-          </body>
-        </html>
-        """
-        msg.attach(MIMEText(html_content, 'html', 'utf-8'))
-
-        # --- Adjuntar imagen si existe ---
-        if image_path.exists():
-            logger.info(f"✔ Imagen encontrada: {image_path}")
-            with open(image_path, "rb") as file:
-                part = MIMEBase("image", "png")
-                part.set_payload(file.read())
-                encoders.encode_base64(part)
-                part.add_header(
-                    "Content-Disposition",
-                    f'attachment; filename="{image_path.name}"'
-                )
-                msg.attach(part)
-                logger.info(f"✔ Imagen '{image_path.name}' adjuntada correctamente")
-        else:
-            logger.warning(f"⚠ Imagen no encontrada en: {image_path}")
-
-        logger.info("Conectando con servidor SMTP...")
-        GMAIL_KEY = os.getenv("GMAIL_KEY")
-
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(EMAIL_FROM, GMAIL_KEY)
-            server.send_message(msg)
-            logger.info("✅ Correo enviado exitosamente")
-
-    except smtplib.SMTPAuthenticationError:
-        logger.error("""
-        ❌ Error de autenticación. Verifica:
-        1. Que la verificación en 2 pasos esté ACTIVADA
-        2. Que hayas generado una CONTRASEÑA DE APLICACIÓN
-        3. Que estés usando la contraseña de aplicación (16 caracteres)
-        """)
+            titulo = data.get("titulo", "Artículo")
+            contenido = data.get("contenido", "")
+            resumen = data.get("resumen", "")
     except Exception as e:
-        logger.error(f"❌ Error inesperado: {str(e)}", exc_info=True)
+        logging.error(f"Error al leer {ARTICLE_JSON}: {e}")
+        titulo, contenido, resumen = "Artículo", "", ""
 
-# ----------------------------
-# Ejecución
-# ----------------------------
+    if not contenido:  # fallback a .md si JSON vacío
+        try:
+            with open(ARTICLE_MD, "r", encoding="utf-8") as f:
+                contenido = f.read()
+        except Exception as e:
+            logging.error(f"Error al leer {ARTICLE_MD}: {e}")
+            contenido = "No se pudo cargar el contenido."
+
+    # Generar asunto híbrido
+    asunto_ia = generar_asunto_ia(titulo, resumen)
+    asunto_final = f"{SUBJECT_PREFIX} {asunto_ia}"
+
+    # Construir mensaje
+    msg = MIMEMultipart()
+    msg["From"] = EMAIL_USER
+    msg["To"] = ", ".join(RECIPIENTS)
+    msg["Subject"] = asunto_final
+
+    cuerpo_html = f"""
+    <html>
+    <body>
+        <h2>{titulo}</h2>
+        <p>{contenido[:1500]}...</p>
+        <p><i>Artículo completo en adjunto</i></p>
+    </body>
+    </html>
+    """
+    msg.attach(MIMEText(cuerpo_html, "html"))
+
+    # Adjuntar archivo markdown
+    try:
+        with open(ARTICLE_MD, "rb") as f:
+            part = MIMEApplication(f.read(), Name=os.path.basename(ARTICLE_MD))
+        part["Content-Disposition"] = f'attachment; filename="{os.path.basename(ARTICLE_MD)}"'
+        msg.attach(part)
+    except Exception as e:
+        logging.warning(f"No se pudo adjuntar {ARTICLE_MD}: {e}")
+
+    # Adjuntar solo la primera imagen (según tu requisito)
+    try:
+        imgs = [f for f in os.listdir(IMAGES_DIR) if f.endswith(".png")]
+        if imgs:
+            primera_img = imgs[0]
+            with open(os.path.join(IMAGES_DIR, primera_img), "rb") as f:
+                img_part = MIMEApplication(f.read(), Name=primera_img)
+            img_part["Content-Disposition"] = f'attachment; filename="{primera_img}"'
+            msg.attach(img_part)
+    except Exception as e:
+        logging.warning(f"No se pudo adjuntar imagen: {e}")
+
+    return msg, asunto_final
+
+def enviar_email():
+    msg, asunto = construir_email()
+    try:
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(EMAIL_USER, EMAIL_PASS)
+            server.sendmail(EMAIL_USER, RECIPIENTS, msg.as_string())
+        logging.info(
+            f"Correo enviado ✅ | De: {EMAIL_USER} | Para: {RECIPIENTS} | Asunto: {asunto}"
+        )
+    except Exception as e:
+        logging.error(f"Fallo al enviar el correo: {e}")
+
 if __name__ == "__main__":
-    logger.info("==== INICIO DE ENVÍO ====")
-    send_email()
-    logger.info("==== PROCESO COMPLETADO ====")
+    enviar_email()
+
 
 
 

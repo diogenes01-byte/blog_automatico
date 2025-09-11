@@ -1,189 +1,130 @@
 import os
-import requests
-from datetime import datetime
-from collections import Counter
-from typing import List, Optional
-import random
-import nltk
-from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
-from openai import OpenAI
-from pathlib import Path
+import json
 import logging
-import re
-import numpy as np
-import json   # ← añadido para leer JSON
+import random
+import yaml
+from datetime import datetime
+from openai import OpenAI
 
-# ----------------------------
-# Configuración inicial
-# ----------------------------
-BASE_DIR = Path(__file__).parent.parent
-LOG_DIR = BASE_DIR / "logs"
-IMAGES_DIR = BASE_DIR / "03_imagenes"
-# Ajuste: ahora tomamos el artículo generado en la raíz de 02_articulos
-ARTICLE_FILE = BASE_DIR / "02_articulos" / "articulo_generado.json"
-
-# Crear carpetas necesarias
-LOG_DIR.mkdir(exist_ok=True)
-IMAGES_DIR.mkdir(exist_ok=True, parents=True)
-
+# -------------------------
 # Configuración de logging
+# -------------------------
+os.makedirs("logs", exist_ok=True)
 logging.basicConfig(
+    filename=os.path.join("logs", "generacion_imagen.log"),
     level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.FileHandler(LOG_DIR / "03_generar_imagen.log", encoding="utf-8"),
-        logging.StreamHandler()
-    ]
+    format="%(asctime)s - %(levelname)s - %(message)s",
 )
-logger = logging.getLogger(__name__)
 
-# ----------------------------
-# Clase ImageGenerator
-# ----------------------------
-class ImageGenerator:
-    def __init__(self, api_key: str):
-        self.api_key = api_key
-        self.client = OpenAI(api_key=api_key)
-        self.stop_words = set(stopwords.words('spanish') + stopwords.words('english'))
+# -------------------------
+# Cargar configuración
+# -------------------------
+with open("03_imagenes/config.yml", "r", encoding="utf-8") as f:
+    config = yaml.safe_load(f)
 
-        try:
-            nltk.data.find('tokenizers/punkt')
-            nltk.data.find('corpora/stopwords')
-        except:
-            nltk.download('punkt')
-            nltk.download('stopwords')
+# Parámetros desde config
+MODEL_TEXT = config["openai"]["model_text"]
+MODEL_IMAGE = config["openai"]["model_image"]
+IMAGE_SIZE = config["imagen"]["size"]
+IMAGE_QUALITY = config["imagen"]["quality"]
+NUM_IMAGES = config["imagen"]["num_images"]
+STYLES = config["prompt"]["styles"]
+PROMPT_TEMPLATE = config["prompt"]["template"]
 
-    def extract_keywords_semantic(self, text: str, resumen: str) -> List[str]:
-        try:
-            palabras = re.findall(r'\b[a-zA-ZáéíóúñÁÉÍÓÚÑ]{4,}\b', text.lower())
-            stopwords_basicas = {
-                "esta", "este", "para", "como", "donde", "cuando", "todo",
-                "pero", "porque", "datos", "tecnologia", "tecnológico",
-                "machine", "learning", "inteligencia", "artificial", "sistema"
-            }
-            candidatos = list(set(p for p in palabras if p not in stopwords_basicas))
+# Cliente OpenAI
+client = OpenAI(api_key=os.getenv("BLOG_OPENIA_KEY"))
 
-            resumen_vec = self.client.embeddings.create(
-                model="text-embedding-3-small",
-                input=resumen
-            ).data[0].embedding
+# -------------------------
+# Función para resumir artículo
+# -------------------------
+def generar_resumen(texto: str) -> str:
+    """
+    Usa el modelo de texto para generar un resumen corto (1-2 frases).
+    """
+    try:
+        response = client.chat.completions.create(
+            model=MODEL_TEXT,
+            messages=[
+                {"role": "system", "content": "Eres un experto en comunicación clara."},
+                {"role": "user", "content": f"Resume en 1-2 frases el siguiente texto de forma objetiva y clara:\n\n{texto}"}
+            ],
+            temperature=0.5,
+            max_tokens=120,
+        )
+        resumen = response.choices[0].message.content.strip()
+        logging.info(f"Resumen generado: {resumen}")
+        return resumen
+    except Exception as e:
+        logging.error(f"Error al generar resumen: {e}")
+        return "Artículo sobre ciencia de datos y aplicaciones de IA en negocios."
 
-            resultados = []
-            for palabra in candidatos:
-                vec = self.client.embeddings.create(
-                    model="text-embedding-3-small",
-                    input=palabra
-                ).data[0].embedding
-                sim = np.dot(resumen_vec, vec) / (np.linalg.norm(resumen_vec) * np.linalg.norm(vec))
-                resultados.append((palabra, sim))
+# -------------------------
+# Función principal
+# -------------------------
+def main():
+    # Rutas
+    articulo_path = "02_articulos/articulo_generado.json"
+    output_dir = "03_imagenes/outputs"
+    os.makedirs(output_dir, exist_ok=True)
 
-            resultados.sort(key=lambda x: x[1], reverse=True)
-            return [palabra for palabra, _ in resultados[:5]]
+    # Leer artículo
+    if not os.path.exists(articulo_path):
+        logging.error("No se encontró articulo_generado.json")
+        return
 
-        except Exception as e:
-            logger.warning(f"Fallo en extracción semántica: {str(e)}")
-            return None
+    with open(articulo_path, "r", encoding="utf-8") as f:
+        articulo = json.load(f)
 
-    def extract_keywords_fallback(self, text: str) -> List[str]:
-        try:
-            words = [
-                w for w in word_tokenize(text.lower())
-                if w.isalpha()
-                and w not in self.stop_words
-                and len(w) > 3
-            ]
-            palabras_genericas = {
-                "datos", "data", "información", "sistema", "tecnología",
-                "machine", "learning", "inteligencia", "artificial"
-            }
-            words = [w for w in words if w not in palabras_genericas]
+    contenido = articulo.get("contenido", "")
+    titulo = articulo.get("titulo", "articulo")
 
-            counter = Counter(words)
-            mas_comunes = [palabra for palabra, _ in counter.most_common(15)]
-            return random.sample(mas_comunes, min(5, len(mas_comunes)))
+    if not contenido:
+        logging.error("El artículo no contiene texto válido")
+        return
 
-        except Exception as e:
-            logger.warning(f"Error en fallback NLTK: {str(e)}")
-            return ["technology", "innovation", "AI"]
+    # 1. Generar resumen corto
+    resumen = generar_resumen(contenido)
 
-    def extract_keywords(self, text: str, resumen: str) -> List[str]:
-        keywords_sem = self.extract_keywords_semantic(text, resumen)
-        if keywords_sem and len(keywords_sem) >= 3:
-            return keywords_sem
-        return self.extract_keywords_fallback(text)
+    # 2. Seleccionar estilo dinámico
+    estilo = random.choice(STYLES)
 
-    def generate_prompt(self, content: str) -> str:
-        resumen = ' '.join(content.strip().split()[:50])
-        keywords = self.extract_keywords(content, resumen)
+    # 3. Construir prompt con plantilla
+    prompt = PROMPT_TEMPLATE.format(resumen=resumen, estilo=estilo)
 
-        estilos = [
-            "ilustración digital futurista",
-            "render hiperrealista con iluminación dramática",
-            "minimalista estilo infografía técnica",
-            "concept art cinematográfico",
-            "estilo isométrico 3D con sombras suaves"
-        ]
-        estilo_elegido = random.choice(estilos)
+    # Guardar prompt en archivo .txt
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    prompt_file = os.path.join(output_dir, f"{titulo}_{timestamp}_prompt.txt")
+    with open(prompt_file, "w", encoding="utf-8") as f:
+        f.write(prompt)
+    logging.info(f"Prompt guardado en {prompt_file}")
 
-        return (
-            f"{estilo_elegido} que represente visualmente el tema del artículo: "
-            f"'{resumen}'. Incluir elementos como {', '.join(keywords)} "
-            "con un ambiente tecnológico y profesional, paleta de colores fríos (azules, violetas, grises), "
-            "sin texto, formato horizontal, estética limpia y en alta resolución."
+    # 4. Generar imagen
+    try:
+        result = client.images.generate(
+            model=MODEL_IMAGE,
+            prompt=prompt,
+            size=IMAGE_SIZE,
+            quality=IMAGE_QUALITY,
+            n=NUM_IMAGES,
         )
 
-    def generate_image(self, article_path: Path) -> Optional[Path]:
-        try:
-            with open(article_path, 'r', encoding='utf-8') as f:
-                # Ajuste: leer JSON y quedarnos con el campo texto
-                try:
-                    data = json.load(f)
-                    if isinstance(data, dict) and "contenido" in data:
-                        content = data["contenido"]
-                    else:
-                        # fallback por si el json guarda el texto sin clave
-                        content = json.dumps(data, ensure_ascii=False)
-                except json.JSONDecodeError:
-                    # fallback si es texto plano
-                    content = f.read()
+        for i, data in enumerate(result.data):
+            img_bytes = data.b64_json
+            img_path = os.path.join(output_dir, f"{titulo}_{timestamp}_{i+1}.png")
+            with open(img_path, "wb") as img_file:
+                import base64
+                img_file.write(base64.b64decode(img_bytes))
+            logging.info(f"Imagen guardada en {img_path}")
 
-            prompt = self.generate_prompt(content)
-            logger.info(f"Generando imagen para: {article_path.name}")
-            logger.info(f"Prompt usado: {prompt}")
+    except Exception as e:
+        logging.error(f"Error al generar imágenes: {e}")
 
-            response = self.client.images.generate(
-                model="dall-e-3",
-                prompt=prompt[:4000],
-                size="1024x1024",
-                quality="hd",
-                n=1
-            )
-
-            image_path = IMAGES_DIR / f"{article_path.stem}.png"
-            with open(image_path, 'wb') as f:
-                f.write(requests.get(response.data[0].url).content)
-
-            logger.info(f"✅ Imagen guardada: {image_path}")
-            return image_path
-
-        except Exception as e:
-            logger.error(f"Error al generar imagen: {str(e)}", exc_info=True)
-            return None
-
-# ----------------------------
-# Ejecución principal
-# ----------------------------
+# -------------------------
+# Ejecutar
+# -------------------------
 if __name__ == "__main__":
-    API_KEY = os.getenv("BLOG_OPENIA_KEY")
-    if not API_KEY or API_KEY.startswith("tu-api-key"):
-        logger.error("❌ Configura tu API key de OpenAI")
-    else:
-        generator = ImageGenerator(API_KEY)
-        if not ARTICLE_FILE.exists():
-            logger.error("No se encontró articulo_generado.json")
-        else:
-            generator.generate_image(ARTICLE_FILE)
+    main()
+
 
 
 

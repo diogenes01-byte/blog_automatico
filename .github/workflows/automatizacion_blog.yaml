@@ -3,7 +3,7 @@ name: blog_automatico
 on:
   push:
     branches:
-      - main           # ejecuta cuando hagas git push a main
+      - main
   workflow_dispatch:
   schedule:
     - cron: "0 8 * * 1,3,5"   # lunes, miércoles, viernes a las 08:00 UTC
@@ -61,6 +61,13 @@ jobs:
           name: tema-actual
           path: 01_temas
 
+      - name: 📥 Descargar historial (si existe)
+        uses: actions/download-artifact@v4
+        with:
+          name: historial-estilos
+          path: 02_articulos
+        continue-on-error: true   # si no existe aún, no falla
+
       - name: ✍️ Generar artículo
         run: |
           python 02_articulos/generacion_articulos.py
@@ -71,6 +78,13 @@ jobs:
           name: articulo-generado
           path: 02_articulos/articulo_generado.json
           retention-days: 30
+
+      - name: 📤 Subir artifact - Historial de estilos
+        uses: actions/upload-artifact@v4
+        with:
+          name: historial-estilos
+          path: 02_articulos/historial.json
+          retention-days: 90
 
       # -------------------------
       # Paso 3 - Generar imágenes
@@ -89,7 +103,7 @@ jobs:
       # -------------------------
       # Paso 5 - Subir artefactos finales
       # -------------------------
-      - name: 📤 Upload artifacts
+      - name: 📤 Upload artifacts finales
         uses: actions/upload-artifact@v4
         with:
           name: blog-output
@@ -100,6 +114,7 @@ jobs:
 
       - name: ✅ Fin
         run: echo "Workflow completado correctamente."
+
 
 
 

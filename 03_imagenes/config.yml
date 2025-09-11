@@ -1,0 +1,21 @@
+openai:
+  model_text: gpt-4o-mini         # Modelo para generar resumen del artículo
+  model_image: gpt-image-1        # Modelo para generar imágenes
+
+imagen:
+  size: "1024x1024"               # Tamaño de la imagen (ej: 512x512, 1024x1024)
+  quality: "high"                 # Calidad: "standard" o "high"
+  num_images: 2                   # Número de imágenes a generar por artículo
+
+prompt:
+  styles:                         # Estilos posibles para variar las imágenes
+    - "realista y profesional"
+    - "futurista con tonos tecnológicos"
+    - "minimalista con enfoque en datos"
+    - "fotografía corporativa moderna"
+    - "infografía conceptual estilizada"
+  template: >
+    Crear una imagen {estilo} que represente el siguiente tema:
+    "{resumen}".
+    Restricciones: sin texto, sin logotipos, colores sobrios,
+    formato horizontal, coherente y clara.

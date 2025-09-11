@@ -1,5 +1,7 @@
 nltk>=3.8
 openai>=1.0
-numpy
-markdown
-yaml
+numpy>=1.25
+markdown>=3.9
+PyYAML>=6.0
+requests>=2.31
+python-dotenv>=1.0

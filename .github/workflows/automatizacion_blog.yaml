@@ -61,12 +61,12 @@ jobs:
           name: tema-actual
           path: 01_temas
 
-      - name: 📥 Descargar historial (si existe)
+      - name: 📥 Descargar historial de estilos (si existe)
         uses: actions/download-artifact@v4
         with:
           name: historial-estilos
           path: 02_articulos
-        continue-on-error: true   # si no existe aún, no falla
+        continue-on-error: true   # no falla si aún no existe
 
       - name: ✍️ Generar artículo
         run: |
@@ -101,7 +101,7 @@ jobs:
         working-directory: ./04_email
 
       # -------------------------
-      # Paso 5 - Subir artefactos finales
+      # Paso 5 - Subir artifacts finales
       # -------------------------
       - name: 📤 Upload artifacts finales
         uses: actions/upload-artifact@v4
@@ -114,6 +114,7 @@ jobs:
 
       - name: ✅ Fin
         run: echo "Workflow completado correctamente."
+
 
 
 
